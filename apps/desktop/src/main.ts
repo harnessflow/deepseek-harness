@@ -5,7 +5,7 @@ import { readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { homedir } from 'node:os'
 import { mkdirSync } from 'node:fs'
-import { desktopProductEnvironment, desktopProductPaths, parseDesktopProduct } from './product.mjs'
+import { desktopProductEnvironment, desktopProductPaths, desktopProductSkillDirectory, parseDesktopProduct } from './product.mjs'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import {
   app,
@@ -336,7 +336,8 @@ async function main(): Promise<void> {
   const hostEnvironment = desktopProduct === undefined || productState === undefined ? process.env : { ...process.env,
     DSH_HOME: productState.home, DSH_AGENTS_HOME: productState.agents,
     DSH_DESKTOP_PRODUCT_BUNDLE: desktopProduct.bundlePackage,
-    DSH_DESKTOP_BUNDLED_SKILL_DIR: join(resources.dsh, 'node_modules', desktopProduct.bundlePackage, 'resources', 'skills') }
+    DSH_DESKTOP_BUNDLED_SKILL_DIR: desktopProductSkillDirectory(desktopProduct, resources.dsh,
+      app.isPackaged ? join(process.resourcesPath, 'app.asar.unpacked', 'dsh') : undefined) }
   const paths = resolveDesktopPaths(productState?.home)
   const development = !app.isPackaged
   const primaryRuntime = development

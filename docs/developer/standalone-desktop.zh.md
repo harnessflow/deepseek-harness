@@ -41,7 +41,7 @@ description: "独立品牌发行的原生桌面输入，涵盖私有本地状态
 ## 打包边界
 <a id="packaging-boundaries"></a>
 
-原生装配器将 `DSH_DESKTOP_PRODUCT_TARBALLS` 加入显式本地包输入，并包含必需组合包的依赖闭包。发行依赖缺失时，不回退到从注册表下载私有包。Desktop Host 通过 `DSH_DESKTOP_BUNDLED_SKILL_DIR` 接收组合包安装位置中的 `resources/skills` 路径；组合包负责自身插件配置和 skill（技能）内容。
+原生装配器将 `DSH_DESKTOP_PRODUCT_TARBALLS` 加入显式本地包输入，并包含必需组合包的依赖闭包。发行依赖缺失时，不回退到从注册表下载私有包。Desktop Host 通过 `DSH_DESKTOP_BUNDLED_SKILL_DIR` 接收组合包安装位置中的 `resources/skills` 路径；组合包负责自身插件配置和 skill（技能）内容。builder 使用原生 `asarUnpack` 规则将该目录放在归档外，安装版 Host 接收物理 `app.asar.unpacked/dsh` 资源路径，供 Python 等原生命令读取。开发 Host 保留原运行时目录路径；无需在首次使用时解压资源。
 
 手动升级发行省略更新 feed 和强制更新策略，即使继承了官方策略变量也是如此。产品版本和引擎版本保持分离：产品版本标识安装包，原生运行时兼容性检查保留引擎版本。`DSH_DESKTOP_RELEASE_ENV_FILE` 选择发行方自己的签名配置；原生宿主、签名、公证和资源保护检查继续生效。该约定不授权发布包或产品资产。
 

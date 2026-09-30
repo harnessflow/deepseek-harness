@@ -69,6 +69,17 @@ function contains(parent, child) {
 }
 
 /**
+ * Select physical bundled resources for native subprocesses, not virtual ASAR paths.
+ * @param {import('./product-types.js').DesktopProduct} product Standalone identity.
+ * @param {string} runtimeDirectory Native development or installed runtime root.
+ * @param {string | undefined} unpackedRuntimeDirectory Physical installed runtime root, omitted for development.
+ * @returns {string} Bundle-owned Skill directory.
+ */
+export function desktopProductSkillDirectory(product, runtimeDirectory, unpackedRuntimeDirectory) {
+  return join(unpackedRuntimeDirectory ?? runtimeDirectory, 'node_modules', product.bundlePackage, 'resources', 'skills')
+}
+
+/**
  * Resolve private state before Electron or Host reads any personal data.
  * @param {import('./product-types.js').DesktopProduct} product Standalone identity.
  * @param {string} userHome OS user home.

@@ -2,7 +2,7 @@ import { existsSync, mkdtempSync, mkdirSync, readFileSync, realpathSync, rmSync,
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { desktopProductEnvironment, desktopProductPaths, parseDesktopProduct } from '../src/product.mjs'
+import { desktopProductEnvironment, desktopProductPaths, desktopProductSkillDirectory, parseDesktopProduct } from '../src/product.mjs'
 import { resolveDesktopLocale, resolveDesktopStartupLocale } from '../src/locale.ts'
 import { resolveDesktopPolicyEnvironment } from '../scripts/desktop-policy-environment.mjs'
 import { createElectronBuilderConfig } from '../scripts/electron-builder-config.mjs'
@@ -150,8 +150,19 @@ describe('standalone desktop distribution', () => {
     expect(config.extraMetadata.dshMandatoryUpdatePolicy).toBeUndefined()
     expect(config.artifactName).toMatch(/^product-test-.*-unsigned/u)
     expect(config.asar).toBe(true)
+    expect(config.asarUnpack).toContain(`**/node_modules/${product.bundlePackage}/resources/skills/**/*`)
     expect(config.win.icon).toBe(join(artwork, 'icon-windows.png'))
     expect(() => createElectronBuilderConfig({ ...env, DSH_DESKTOP_PRODUCT_ARTWORK: undefined }, 'win32', 'x64')).toThrow('artwork directory')
+  })
+
+  it('exposes physical installed Skill resources without changing the development resource root', () => {
+    const home = temporaryHome()
+    const runtime = join(home, 'app.asar', 'dsh')
+    const unpacked = join(home, 'app.asar.unpacked', 'dsh')
+    expect(desktopProductSkillDirectory(product, runtime, unpacked))
+      .toBe(join(unpacked, 'node_modules', product.bundlePackage, 'resources', 'skills'))
+    expect(desktopProductSkillDirectory(product, join(home, 'development')))
+      .toBe(join(home, 'development', 'node_modules', product.bundlePackage, 'resources', 'skills'))
   })
 
   it('keeps mandatory bundles through profile recovery and rejects missing installed input', async () => {
