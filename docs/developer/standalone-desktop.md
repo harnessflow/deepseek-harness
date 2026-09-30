@@ -27,6 +27,8 @@ The deployment launcher supplies `DSH_DESKTOP_PRODUCT` as a validated JSON ident
 
 Development additionally supplies `DSH_DESKTOP_PRODUCT_HOME` and `DSH_DESKTOP_PRODUCT_PACKAGES`, an explicit package-to-absolute-directory JSON object. Package names cannot replace the upstream namespace or escape the generated project. The macOS development launcher records product identity, artwork, and runtime location for OS-initiated cold starts. Packaged applications read their embedded `dshDesktopProduct` manifest record instead of an inherited product JSON variable.
 
+The shell supplies `DSH_DESKTOP_PRODUCT_BUNDLE` to its private Host. The Host validates that bundle in the runtime manifest and uses that manifest as the native installation-resolution anchor, so explicit external client packages remain discoverable even when development packages are source links. The official distribution keeps its CLI-package anchor.
+
 ## State and recovery
 <a id="state-and-recovery"></a>
 

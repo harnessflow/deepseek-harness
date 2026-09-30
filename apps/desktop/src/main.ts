@@ -335,6 +335,7 @@ async function main(): Promise<void> {
   const resources = runtimeResources()
   const hostEnvironment = desktopProduct === undefined || productState === undefined ? process.env : { ...process.env,
     DSH_HOME: productState.home, DSH_AGENTS_HOME: productState.agents,
+    DSH_DESKTOP_PRODUCT_BUNDLE: desktopProduct.bundlePackage,
     DSH_DESKTOP_BUNDLED_SKILL_DIR: join(resources.dsh, 'node_modules', desktopProduct.bundlePackage, 'resources', 'skills') }
   const paths = resolveDesktopPaths(productState?.home)
   const development = !app.isPackaged

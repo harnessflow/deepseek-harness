@@ -27,6 +27,8 @@ description: "独立品牌发行的原生桌面输入，涵盖私有本地状态
 
 开发环境另提供 `DSH_DESKTOP_PRODUCT_HOME` 和 `DSH_DESKTOP_PRODUCT_PACKAGES`，后者是显式的包名到绝对目录 JSON 对象。包名不能替换上游命名空间或逃离生成的项目。macOS 开发启动器记录产品身份、图形资源和运行时位置，供 OS 发起的冷启动使用。安装版应用读取其内嵌的 `dshDesktopProduct` manifest（元数据清单）记录，不读取继承的产品 JSON 变量。
 
+壳层向自己的私有 Host 提供 `DSH_DESKTOP_PRODUCT_BUNDLE`。Host 在运行时元数据清单中校验该组合包，并以该清单作为原生安装依赖解析的起点，因此即使开发包是源码链接，也能发现显式外置客户端包。官方发行保留其 CLI 包解析起点。
+
 ## 状态与恢复
 <a id="state-and-recovery"></a>
 
