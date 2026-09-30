@@ -59,6 +59,8 @@ describe('desktop development project', () => {
     const project = prepareDevelopmentProject({ projectDir: join(root, 'runtime'), cliDir: cli, hostDir: host,
       dependencyDir: hoisted, release: release(), target: 'mac-arm64', packages })
     expect(realpathSync(join(project, 'node_modules/@product/bundle'))).toBe(realpathSync(dependency))
+    const manifest = JSON.parse(readFileSync(join(project, 'package.json'), 'utf8')) as { dependencies: Record<string, string> }
+    expect(manifest.dependencies['@product/bundle']).toBe('1.0.0')
     expect(() => parseDevelopmentPackages({ '@product/other': dependency })).toThrow(/identity mismatch/u)
     const descriptor = JSON.parse(readFileSync(join(project, 'desktop-runtime.json'), 'utf8')) as { sharedPackages: unknown[] }
     expect(descriptor.sharedPackages).toContainEqual({ name: '@product/bundle', version: '1.0.0', path: 'node_modules/@product/bundle' })

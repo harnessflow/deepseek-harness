@@ -9,6 +9,7 @@ import { createElectronBuilderConfig } from '../scripts/electron-builder-config.
 import { createPluginProfile, DesktopProjectManager } from '../src/project-manager.ts'
 import { resolveDesktopPaths } from '../src/paths.ts'
 import { runtimeFixture } from './runtime-fixture.ts'
+import { needsWelcome } from '../src/welcome-api.ts'
 import { selectDesktopPackageClosure } from '../scripts/prepare-package-set.ts'
 
 const identity = { name: 'Product Test', version: '1.0.0-alpha.1', appId: 'org.example.test',
@@ -24,6 +25,11 @@ function temporaryHome(): string {
 afterEach(() => { for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true }) })
 
 describe('standalone desktop distribution', () => {
+  it('does not require official authentication to enter a standalone workbench', () => {
+    expect(needsWelcome({ loggedIn: false, hasApiKey: false })).toBe(true)
+    expect(needsWelcome({ loggedIn: false, hasApiKey: false }, true)).toBe(false)
+    expect(needsWelcome({ loggedIn: true, hasApiKey: false }, true)).toBe(false)
+  })
   it('keeps official defaults when metadata is absent', () => {
     expect(parseDesktopProduct(undefined)).toBeUndefined()
     expect(desktopProductEnvironment({})).toBeUndefined()

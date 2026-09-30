@@ -64,6 +64,9 @@ export function parseDevelopmentPackages(value: unknown): Readonly<Record<string
     }
     const manifest = readManifest(join(directory, 'package.json'))
     if (manifest.name !== name) throw new Error(`desktop development: external package identity mismatch for ${name}`)
+    if (typeof manifest.version !== 'string' || manifest.version === '') {
+      throw new Error(`desktop development: external package version is missing for ${name}`)
+    }
     packages[name] = directory
   }
   return packages
@@ -170,7 +173,9 @@ export function prepareDevelopmentProject(options: DevelopmentProjectOptions): s
   }
 
   removeOwnedPath(options.projectDir)
-  createDevelopmentProjectMetadata(options.projectDir, options.release)
+  const externalDependencies = Object.fromEntries(Object.entries(packages).map(([name, directory]) =>
+    [name, readManifest(join(directory, 'package.json')).version!]))
+  createDevelopmentProjectMetadata(options.projectDir, options.release, externalDependencies)
   const destinationModules = join(options.projectDir, 'node_modules')
   mkdirSync(destinationModules, { recursive: true })
   const names = [
