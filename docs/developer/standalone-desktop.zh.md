@@ -34,7 +34,7 @@ description: "独立品牌发行的原生桌面输入，涵盖私有本地状态
 ## 状态与恢复
 <a id="state-and-recovery"></a>
 
-壳层在打开 Electron 存储或启动 Desktop Host 前解析私有状态。安装版 home 使用 `<PROTOCOL>_HOME`，否则使用 OS 用户 home 下的产品 home 目录；仅开发环境使用的 home 覆盖不影响安装版。解析拒绝与官方默认及继承的自定义 home 重叠、开发/安装状态重叠、悬空链接和状态子目录重定向。Electron 浏览器数据、日志、profile 和个人 agent 资源均位于选定私有 home 下。
+壳层在打开 Electron 存储或启动 Desktop Host 前解析私有状态。安装版 home 使用 `<PROTOCOL>_HOME`，否则使用 OS 用户 home 下的产品 home 目录；仅开发环境使用的 home 覆盖不影响安装版。解析拒绝与官方默认及继承的自定义 home 重叠、开发/安装状态重叠、悬空链接和状态子目录重定向。Electron 浏览器数据、日志、profile、个人 agent、会话、原生 `storages`、运行时和默认工作区均位于选定私有 home 下。home 层的 `.credentials.yaml`、`.env`、`cordis.patch.yml` 以及桌面 profile 的元数据清单和 patch 不能是符号链接，包括悬空链接；校验不读取或修改其内容和链接目标。用户显式选择的工作区及其项目凭据保持原生机制。
 
 父进程保留继承的官方根目录变量，供重启检查使用。只有 Desktop Host 接收私有 `DSH_HOME` 和 `DSH_AGENTS_HOME` 值。原生凭据查找顺序、审批、沙箱行为和持久化格式保持不变。profile 恢复保留必需发行组合包；缺失安装版组合包时报重新安装错误，而不是静默降级应用。
 

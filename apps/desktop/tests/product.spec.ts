@@ -1,6 +1,6 @@
-import { mkdtempSync, mkdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, mkdirSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { desktopProductEnvironment, desktopProductPaths, parseDesktopProduct } from '../src/product.mjs'
 import { resolveDesktopLocale, resolveDesktopStartupLocale } from '../src/locale.ts'
@@ -82,6 +82,49 @@ describe('standalone desktop distribution', () => {
     mkdirSync(join(other, '.product-test'))
     symlinkSync(join(other, '.dsh'), join(other, '.product-test', 'agents'), process.platform === 'win32' ? 'junction' : 'dir')
     expect(() => desktopProductPaths(product, other, {}, true)).toThrow('dangling')
+  })
+
+  it.each(['sessions', 'storage', 'storages', 'dsh-runtimes', 'workspaces', 'workspaces/deepseek-harness/default-workspace', 'profiles/desktop'])('refuses redirected %s in installed and development homes', (directory) => {
+    for (const packaged of [true, false]) {
+      const home = temporaryHome()
+      const target = join(home, '.dsh')
+      mkdirSync(target)
+      writeFileSync(join(target, 'keep.txt'), 'keep original state')
+      const environment = packaged ? {} : { DSH_DESKTOP_PRODUCT_HOME: join(home, 'development') }
+      const state = packaged ? join(home, '.product-test') : join(home, 'development')
+      const location = join(state, directory)
+      mkdirSync(dirname(location), { recursive: true })
+      symlinkSync(target, location, process.platform === 'win32' ? 'junction' : 'dir')
+      expect(() => desktopProductPaths(product, home, environment, packaged)).toThrow('redirected state')
+      expect(readFileSync(join(target, 'keep.txt'), 'utf8')).toBe('keep original state')
+    }
+  })
+
+  it.skipIf(process.platform === 'win32')('refuses linked owned configuration files, including dangling links, without changing their targets', () => {
+    for (const file of ['.credentials.yaml', '.env', 'cordis.patch.yml', 'profiles/desktop/cordis.patch.yml', 'profiles/desktop/package.json']) {
+      for (const dangling of [false, true]) {
+        const home = temporaryHome()
+        const target = join(home, '.dsh', 'keep.txt')
+        mkdirSync(dirname(target), { recursive: true })
+        if (!dangling) writeFileSync(target, 'keep original state')
+        const location = join(home, '.product-test', file)
+        mkdirSync(dirname(location), { recursive: true })
+        symlinkSync(target, location)
+        expect(() => desktopProductPaths(product, home, {}, true)).toThrow('redirected configuration file')
+        if (!dangling) expect(readFileSync(target, 'utf8')).toBe('keep original state')
+        else expect(existsSync(target)).toBe(false)
+      }
+    }
+  })
+
+  it('accepts regular owned configuration files without reading their contents', () => {
+    const home = temporaryHome()
+    const state = join(home, '.product-test')
+    mkdirSync(join(state, 'profiles/desktop'), { recursive: true })
+    for (const file of ['.credentials.yaml', '.env', 'cordis.patch.yml', 'profiles/desktop/cordis.patch.yml', 'profiles/desktop/package.json']) {
+      writeFileSync(join(state, file), 'invalid content is not interpreted by identity resolution')
+    }
+    expect(desktopProductPaths(product, home, {}, true).home).toBe(state)
   })
 
   it('retains both localized dictionaries while substituting the product name', () => {
