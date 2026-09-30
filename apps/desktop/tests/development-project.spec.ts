@@ -69,7 +69,7 @@ describe('desktop development project', () => {
     expect(manifest.dependencies['@deepseek-ai/dsh-client-ui-renderer']).toBe('1.2.3')
     const resolution = await createRuntimeResolution({ installAnchor: join(project, 'package.json'), home: join(root, 'home') })
     expect(resolution.entries.find(entry => entry.name === '@deepseek-ai/dsh-client-ui-renderer')?.declarer)
-      .toBe(join(realpathSync(project), 'package.json'))
+      .toBe(join(realpathSync.native(project), 'package.json'))
     expect(() => parseDevelopmentPackages({ '@product/other': dependency })).toThrow(/identity mismatch/u)
     const descriptor = JSON.parse(readFileSync(join(project, 'desktop-runtime.json'), 'utf8')) as { sharedPackages: unknown[] }
     expect(descriptor.sharedPackages).toContainEqual({ name: '@product/bundle', version: '1.0.0', path: 'node_modules/@product/bundle' })

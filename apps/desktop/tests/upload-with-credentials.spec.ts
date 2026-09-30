@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process'
-import { copyFile, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises'
+import { copyFile, mkdir, mkdtemp, readFile, rm, symlink, unlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, delimiter, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -12,6 +12,31 @@ const launcher = fileURLToPath(new URL('../scripts/upload-with-credentials.ps1',
 const roots: string[] = []
 const quote = (value: string): string => `'${value.replaceAll("'", "''")}'`
 
+async function prepareUploadFixture(root: string, mode: 'upload' | 'upload-failure') {
+  const scripts = join(root, 'apps/desktop/scripts')
+  await mkdir(scripts, { recursive: true })
+  await writeFile(join(root, 'package.json'), JSON.stringify({ type: 'module' }))
+  const entry = join(scripts, 'upload-with-credentials.ps1')
+  await copyFile(launcher, entry)
+  await symlink(fileURLToPath(new URL('../../../node_modules', import.meta.url)), join(root, 'node_modules'), 'junction')
+  // Replace only the child uploader: this fixture must never contact real release storage.
+  await writeFile(join(scripts, 'upload-target.ts'), `
+    import assert from 'node:assert/strict'
+    assert.equal(process.env.DOWNLOAD_PROD_COS_SECRET_ID, 'fixture-id')
+    assert.equal(process.env.DOWNLOAD_PROD_COS_SECRET_KEY, 'fixture-secret')
+    assert.equal(process.env.DOWNLOAD_PROD_COS_BUCKET, 'fixture-bucket')
+    assert.equal(process.env.DOWNLOAD_TEST_COS_SECRET_KEY, undefined)
+    assert.equal(process.env.DSH_DESKTOP_WINDOWS_TOKEN_PIN, undefined)
+    assert.equal(process.env.NODE_OPTIONS, undefined)
+    assert.equal(process.argv[2], 'win-x64')
+    assert.deepEqual(process.argv.slice(3), ['--credential-launcher', '--environment', 'production', '--bucket', 'fixture-bucket'])
+    console.log('fixture-id fixture-secret')
+    console.error('private service details fixture-secret')
+    process.exit(${mode === 'upload-failure' ? 17 : 0})
+  `)
+  return entry
+}
+
 async function check(mode: 'valid' | 'plaintext' | 'blank' | 'missing' | 'upload' | 'upload-failure', deployment = 'production') {
   const root = await mkdtemp(join(tmpdir(), 'desktop-credentials-'))
   roots.push(root)
@@ -19,26 +44,7 @@ async function check(mode: 'valid' | 'plaintext' | 'blank' | 'missing' | 'upload
   let entry = launcher
   let uploadArguments = ''
   if (mode === 'upload' || mode === 'upload-failure') {
-    const scripts = join(root, 'apps/desktop/scripts')
-    await mkdir(scripts, { recursive: true })
-    entry = join(scripts, 'upload-with-credentials.ps1')
-    await copyFile(launcher, entry)
-    await symlink(fileURLToPath(new URL('../../../node_modules', import.meta.url)), join(root, 'node_modules'), 'junction')
-    // Replace only the child uploader: this fixture must never contact real release storage.
-    await writeFile(join(scripts, 'upload-target.ts'), `
-      import assert from 'node:assert/strict'
-      assert.equal(process.env.DOWNLOAD_PROD_COS_SECRET_ID, 'fixture-id')
-      assert.equal(process.env.DOWNLOAD_PROD_COS_SECRET_KEY, 'fixture-secret')
-      assert.equal(process.env.DOWNLOAD_PROD_COS_BUCKET, 'fixture-bucket')
-      assert.equal(process.env.DOWNLOAD_TEST_COS_SECRET_KEY, undefined)
-      assert.equal(process.env.DSH_DESKTOP_WINDOWS_TOKEN_PIN, undefined)
-      assert.equal(process.env.NODE_OPTIONS, undefined)
-      assert.equal(process.argv[2], 'win-x64')
-      assert.deepEqual(process.argv.slice(3), ['--credential-launcher', '--environment', 'production', '--bucket', 'fixture-bucket'])
-      console.log('fixture-id fixture-secret')
-      console.error('private service details fixture-secret')
-      process.exit(${mode === 'upload-failure' ? 17 : 0})
-    `)
+    entry = await prepareUploadFixture(root, mode)
     uploadArguments = ' -Upload -Target win-x64 -Bucket fixture-bucket'
   }
   const setup = mode === 'missing' ? '' : `
@@ -81,10 +87,28 @@ async function check(mode: 'valid' | 'plaintext' | 'blank' | 'missing' | 'upload
 }
 
 afterEach(async () => {
-  await Promise.all(roots.splice(0).map(async root => rm(root, { recursive: true, force: true })))
+  await Promise.all(roots.splice(0).map(async (root) => {
+    try { await unlink(join(root, 'node_modules')) }
+    catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error }
+    await rm(root, { recursive: true, force: true })
+  }))
 })
 
 describe('credential launcher destination', () => {
+  it('runs the isolated uploader fixture through the actual ESM child entry', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'desktop-credentials-entry-'))
+    roots.push(root)
+    await prepareUploadFixture(root, 'upload')
+    const result = await execute(process.execPath, ['--import', 'tsx/esm', 'apps/desktop/scripts/upload-target.ts',
+      'win-x64', '--credential-launcher', '--environment', 'production', '--bucket', 'fixture-bucket'], {
+      cwd: root, timeout: 30_000,
+      env: { DOWNLOAD_PROD_COS_SECRET_ID: 'fixture-id', DOWNLOAD_PROD_COS_SECRET_KEY: 'fixture-secret',
+        DOWNLOAD_PROD_COS_BUCKET: 'fixture-bucket' },
+    })
+    expect(result.stdout.trim()).toBe('fixture-id fixture-secret')
+    expect(result.stderr.trim()).toBe('private service details fixture-secret')
+  })
+
   const fileEnvironment = {
     DSH_DESKTOP_AUTO_UPDATE_ENV: 'test', DOWNLOAD_TEST_ORIGIN: 'https://download-test.example.com', DOWNLOAD_TEST_RELEASE_ID: '0123456789abcdef0123456789abcdef',
     DOWNLOAD_TEST_COS_BUCKET: 'test-bucket', DOWNLOAD_TEST_COS_SECRET_ID: 'stale-id', DOWNLOAD_TEST_COS_SECRET_KEY: 'stale-key',
