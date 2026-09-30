@@ -198,6 +198,11 @@ export function prepareDevelopmentProject(options: DevelopmentProjectOptions): s
     const manifest = readManifest(join(destinationModules, name, 'package.json'))
     return typeof manifest.version === 'string' ? [{ name, version: manifest.version, path: `node_modules/${name}` }] : []
   })
+  // pnpm's NODE_PATH can find source peers that ESM cannot resolve from their declaring package.
+  if (Object.keys(packages).length > 0) {
+    createDevelopmentProjectMetadata(options.projectDir, options.release,
+      Object.fromEntries(sharedPackages.map(record => [record.name, record.version])))
+  }
   const runtime: DesktopRuntimeDescriptor = { schemaVersion: 1, release: options.release,
     ...desktopTargetPlatform(options.target), sharedPackages, files: [] }
   writeFileSync(join(options.projectDir, DESKTOP_RUNTIME_FILE), `${JSON.stringify(runtime, undefined, 2)}\n`)

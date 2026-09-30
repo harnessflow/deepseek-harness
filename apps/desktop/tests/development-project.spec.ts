@@ -2,6 +2,7 @@ import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
+import { createRuntimeResolution } from '@deepseek-ai/dsh-app-boot'
 import { parseDevelopmentPackages, prepareDevelopmentProject } from '../scripts/development-project.ts'
 import { DESKTOP_HOST_PROTOCOL_VERSION } from '../src/host-protocol.ts'
 import { DesktopProjectManager } from '../src/project-manager.ts'
@@ -41,7 +42,7 @@ describe('desktop development project', () => {
     expect(readFileSync(join(project, 'sentinel'), 'utf8')).toBe('keep')
   })
 
-  it('validates local external package identity and links it into the runtime', () => {
+  it('validates local external packages and anchors their mirrored native peers at the runtime', async () => {
     const root = temporaryRoot()
     const cli = join(root, 'cli')
     const host = join(root, 'host')
@@ -54,13 +55,21 @@ describe('desktop development project', () => {
     writeFileSync(join(cli, 'package.json'), JSON.stringify({ name: '@deepseek-ai/dsh', version: '1.2.3' }))
     writeFileSync(join(host, 'package.json'), JSON.stringify({ name: '@deepseek-ai/dsh-desktop-host', version: '1.2.3' }))
     writeFileSync(join(host, 'lib/index.js'), '')
-    writeFileSync(join(dependency, 'package.json'), JSON.stringify({ name: '@product/bundle', version: '1.0.0' }))
+    writeFileSync(join(dependency, 'package.json'), JSON.stringify({ name: '@product/bundle', version: '1.0.0',
+      peerDependencies: { '@deepseek-ai/dsh-client-ui-renderer': '1.2.3' } }))
+    const renderer = join(hoisted, '@deepseek-ai/dsh-client-ui-renderer')
+    mkdirSync(renderer, { recursive: true })
+    writeFileSync(join(renderer, 'package.json'), JSON.stringify({ name: '@deepseek-ai/dsh-client-ui-renderer', version: '1.2.3' }))
     const packages = parseDevelopmentPackages({ '@product/bundle': dependency })
     const project = prepareDevelopmentProject({ projectDir: join(root, 'runtime'), cliDir: cli, hostDir: host,
       dependencyDir: hoisted, release: release(), target: 'mac-arm64', packages })
     expect(realpathSync(join(project, 'node_modules/@product/bundle'))).toBe(realpathSync(dependency))
     const manifest = JSON.parse(readFileSync(join(project, 'package.json'), 'utf8')) as { dependencies: Record<string, string> }
     expect(manifest.dependencies['@product/bundle']).toBe('1.0.0')
+    expect(manifest.dependencies['@deepseek-ai/dsh-client-ui-renderer']).toBe('1.2.3')
+    const resolution = await createRuntimeResolution({ installAnchor: join(project, 'package.json'), home: join(root, 'home') })
+    expect(resolution.entries.find(entry => entry.name === '@deepseek-ai/dsh-client-ui-renderer')?.declarer)
+      .toBe(join(realpathSync(project), 'package.json'))
     expect(() => parseDevelopmentPackages({ '@product/other': dependency })).toThrow(/identity mismatch/u)
     const descriptor = JSON.parse(readFileSync(join(project, 'desktop-runtime.json'), 'utf8')) as { sharedPackages: unknown[] }
     expect(descriptor.sharedPackages).toContainEqual({ name: '@product/bundle', version: '1.0.0', path: 'node_modules/@product/bundle' })

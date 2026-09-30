@@ -29,6 +29,8 @@ Development additionally supplies `DSH_DESKTOP_PRODUCT_HOME` and `DSH_DESKTOP_PR
 
 The shell supplies `DSH_DESKTOP_PRODUCT_BUNDLE` to its private Host. The Host validates that bundle in the runtime manifest and uses that manifest as the native installation-resolution anchor, so explicit external client packages remain discoverable even when development packages are source links. The official distribution keeps its CLI-package anchor.
 
+For an external development composition, the disposable runtime manifest declares every package already mirrored into its own `node_modules`. Native ESM resolution therefore uses the runtime's physical package links rather than a source peer accidentally discovered through pnpm's CommonJS-only `NODE_PATH`. No external source directory is modified.
+
 ## State and recovery
 <a id="state-and-recovery"></a>
 
