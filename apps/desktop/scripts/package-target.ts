@@ -24,6 +24,7 @@ import { suggestDesktopBuildVersion } from './desktop-build-version-discovery.ts
 import { desktopBuildCommitEnvironment, readDesktopBuildCommit, resolveDesktopBuildCommit } from './desktop-build-commit.mjs'
 import { requireDesktopToolchain } from './desktop-toolchain-preflight.ts'
 import { withMacOSNotarizationProxy } from './macos-notarization-proxy.ts'
+import { desktopProductEnvironment } from '../src/product.mjs'
 
 const APP_ROOT = resolve(import.meta.dirname, '..')
 const REPOSITORY_ROOT = resolve(APP_ROOT, '..', '..')
@@ -143,17 +144,18 @@ function writeReleaseRecord(
   if (desktopVersion !== dshVersion) {
     throw new Error(`desktop package: desktop version ${desktopVersion} does not match dsh version ${dshVersion}`)
   }
-  const buildVersion = resolveDesktopBuildVersion(environment, dshVersion)
+  const product = desktopProductEnvironment(environment)
+  const buildVersion = resolveDesktopBuildVersion(environment, product?.version ?? dshVersion)
   const packaged = resolveDesktopBuildCommit(environment)
-  const update = resolveDesktopAutoUpdateConfig(environment, target.platform, target.arch)
+  const update = product?.updateMode === 'manual' ? undefined : resolveDesktopAutoUpdateConfig(environment, target.platform, target.arch)
   const recordPath = join(artifactsRoot, desktopBuildRecordFilename(target.name))
   const temporaryPath = `${recordPath}.tmp`
   writeFileSync(temporaryPath, `${JSON.stringify({
     schemaVersion: 1,
     target: target.name,
     version: buildVersion,
-    environment: update.environment,
-    publicUrl: update.publicUrl,
+    environment: update?.environment ?? 'manual',
+    ...(update === undefined ? { engineVersion: dshVersion } : { publicUrl: update.publicUrl }),
     // Upload reads this to tag the commit a production release was packaged from.
     ...packaged === undefined ? {} : { commit: packaged.commit, dirty: packaged.dirty },
   }, null, 2)}\n`)
@@ -321,6 +323,9 @@ async function resolveRequestedBuildVersion(
   const requested = invocation.requestedBuildVersion
   if (requested === undefined) return productVersion
   if (requested !== AUTOMATIC_BUILD_VERSION) return validateDesktopBuildVersion(requested, productVersion)
+  if (desktopProductEnvironment(environment)?.updateMode === 'manual') {
+    throw new Error('desktop package: manual distributions require an explicit build version, not remote discovery')
+  }
   const paths = desktopTargetBuildPaths(invocation.target.name)
   return suggestDesktopBuildVersion({
     productVersion, target: invocation.target.name, environment,
@@ -333,7 +338,7 @@ async function main(): Promise<void> {
   const invocation = parseDesktopPackageInvocation(process.argv.slice(2))
   const { target } = invocation
   const environment = loadDesktopPackageEnvironment(target.platform)
-  const productVersion = packageVersion(join(APP_ROOT, 'package.json'), 'desktop package')
+  const productVersion = desktopProductEnvironment(environment)?.version ?? packageVersion(join(APP_ROOT, 'package.json'), 'desktop package')
   // Release settings come from the target dotenv file alone, so the version this run publishes is an
   // argument; the environment variable below only carries it to the child processes that build.
   const buildVersion = await resolveRequestedBuildVersion(invocation, productVersion, environment)
@@ -482,14 +487,14 @@ export async function packageTarget(
     await withMacOSNotarizationProxy(mac?.notarizationProxy, () => packageMacOSArtifacts({
       arch: target.arch,
       // electron-builder named these artifacts after the published version, so locating them uses the same identifier.
-      version: resolveDesktopBuildVersion(environment, packageVersion(join(APP_ROOT, 'package.json'), 'desktop package')),
+      version: resolveDesktopBuildVersion(environment, desktopProductEnvironment(environment)?.version ?? packageVersion(join(APP_ROOT, 'package.json'), 'desktop package')),
       artifactsRoot: buildPaths.artifacts,
       environment: electronBuilderEnv,
     }, artifact => execute(desktopElectronBuilderArguments(target, false, artifact), electronBuilderEnv)), undefined, undefined, proxyEvent)
   } else if (target.platform === 'darwin') {
     await execute([...desktopElectronBuilderArguments(target, true), '--config.mac.notarize=false'], electronBuilderEnv)
     await execute(['exec', 'tsx', 'scripts/smoke-packaged-runtime.ts'], targetEnv)
-    const appPath = join(buildPaths.artifacts, target.arch === 'arm64' ? 'mac-arm64' : 'mac', 'DeepSeek Harness.app')
+    const appPath = join(buildPaths.artifacts, target.arch === 'arm64' ? 'mac-arm64' : 'mac', `${desktopProductEnvironment(environment)?.name ?? 'DeepSeek Harness'}.app`)
     await withMacOSNotarizationProxy(mac?.notarizationProxy,
       () => notarizeMacOS({ appPath, ...resolveMacOSNotarizationEnvironment(environment) }), undefined, undefined, proxyEvent)
   } else {

@@ -1,0 +1,31 @@
+# Bilingual-pair consistency record for standalone-desktop.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write docs/developer/standalone-desktop.md
+/:
+  en: 56544a2644b66031
+  zh: 6fa9e12a911d4221
+/standalone-desktop-distributions:
+  en: 81ccbec5cbe7da0c
+  zh: 4082aca367b6e8c6
+/standalone-desktop-distributions/summary:
+  en: 90a1f7eba9067d55
+  zh: bc38d39d3ce190da
+/standalone-desktop-distributions/table-of-contents:
+  en: 4da453d90d73da34
+  zh: 2af2a0f9e748173c
+/standalone-desktop-distributions/distribution-inputs:
+  en: 9bbb29b0429df0ad
+  zh: 421c9ddf90b15ccc
+/standalone-desktop-distributions/state-and-recovery:
+  en: f691d86151d7d43e
+  zh: 2a6e4c7427a8746d
+/standalone-desktop-distributions/packaging-boundaries:
+  en: 61d0296ab85522a0
+  zh: 7357f3288710aa4d
+/standalone-desktop-distributions/verification:
+  en: c2db02ce6eac727f
+  zh: 9ae9b4146717bbfa
+/standalone-desktop-distributions/dev-note:
+  en: e9ac07f8e75862d7
+  zh: 7dbc1eb4a5374963

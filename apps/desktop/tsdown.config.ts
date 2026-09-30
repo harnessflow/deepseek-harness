@@ -35,6 +35,8 @@ const clientVersionDefine = { 'process.env.DSH_CLIENT_VERSION': JSON.stringify(c
 export default defineConfig([
   {
     entry: ['lib/types/main.js'],
+    // The shared builder/shell module is authored JavaScript, not a tsc output.
+    alias: { './product.mjs': fileURLToPath(new URL('./src/product.mjs', import.meta.url)) },
     plugins: [packagedImportsPlugin(mainProcessImports)],
     define: clientVersionDefine,
     onSuccess: async () => {

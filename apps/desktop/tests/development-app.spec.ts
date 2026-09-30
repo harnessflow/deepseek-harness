@@ -21,3 +21,22 @@ it.skipIf(process.platform === 'win32')('passes literal workspace paths and cold
   expect(result.trimEnd().split('\n')).toEqual([home, '1', '0', '--inspect=127.0.0.1:9229',
     '--remote-debugging-port=9222', `--user-data-dir=${join(root, 'browser data')}`, root, '--test-launch-argument'])
 })
+
+it.skipIf(process.platform === 'win32')('preserves standalone cold-start identity without changing the inherited official home', () => {
+  const root = mkdtempSync(join(tmpdir(), 'dsh-product-development-app-'))
+  onTestFinished(() => { rmSync(root, { recursive: true, force: true }) })
+  const bundle = join(root, 'Product.app')
+  const binary = join(bundle, 'Contents', 'MacOS', 'Electron')
+  mkdirSync(join(bundle, 'Contents', 'MacOS'), { recursive: true })
+  writeFileSync(binary, '#!/bin/sh\nprintf "%s\\n" "$DSH_HOME" "$DSH_DESKTOP_PRODUCT_HOME" "$DSH_DESKTOP_PRODUCT" "$DSH_DESKTOP_PRODUCT_ARTWORK" "$DSH_DESKTOP_PRIMARY_RUNTIME_DIR"\n', { mode: 0o755 })
+  const launcher = join(root, 'launcher')
+  const options = { electron: binary, appRoot: root, directory: root, home: join(root, 'private home'),
+    userData: join(root, 'browser'), mainPort: 9229, rendererPort: 9222, hostPort: 9230, openDevtools: '0',
+    product: { name: 'Product', appId: 'org.example.product', protocol: 'product' }, productJson: '{"name":"Product"}',
+    artwork: join(root, 'artwork'), primaryRuntime: join(root, 'runtime') }
+  writeFileSync(launcher, developmentLauncher(options, bundle))
+  const originalHome = join(root, 'official home')
+  const result = execFileSync('/bin/sh', [launcher], { encoding: 'utf8', env: { ...process.env, DSH_HOME: originalHome } })
+  expect(result.trimEnd().split('\n')).toEqual([originalHome, options.home, options.productJson, options.artwork, options.primaryRuntime])
+  expect(() => developmentLauncher({ ...options, productJson: undefined }, bundle)).toThrow(/cold starts require/u)
+})

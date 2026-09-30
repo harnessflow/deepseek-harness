@@ -15,6 +15,11 @@ export interface DevelopmentAppOptions {
   readonly rendererPort: number
   readonly hostPort: number
   readonly openDevtools: string
+  /** Optional standalone identity and runtime payload captured for cold starts. */
+  readonly product?: { readonly name: string; readonly appId: string; readonly protocol: string }
+  readonly productJson?: string | undefined
+  readonly primaryRuntime?: string | undefined
+  readonly artwork?: string | undefined
 }
 
 function quote(value: string): string { return `'${value.replaceAll("'", "'\\''")}'` }
@@ -26,7 +31,8 @@ function quote(value: string): string { return `'${value.replaceAll("'", "'\\''"
  */
 export function prepareDevelopmentApp(options: DevelopmentAppOptions): string {
   const source = dirname(dirname(dirname(options.electron)))
-  const bundle = join(options.directory, 'Harness Dev.app')
+  const name = options.product === undefined ? 'Harness Dev' : `${options.product.name} Dev`
+  const bundle = join(options.directory, `${name}.app`)
   const executable = join(bundle, 'Contents', 'MacOS', 'HarnessDev')
   const stamp = join(bundle, 'Contents', 'Resources', 'dsh-development.json')
   const launcher = developmentLauncher(options, bundle)
@@ -36,11 +42,11 @@ export function prepareDevelopmentApp(options: DevelopmentAppOptions): string {
     execFileSync('/usr/bin/ditto', [source, bundle])
     const plist = join(bundle, 'Contents', 'Info.plist')
     const values = {
-      CFBundleIdentifier: `com.deepseek.harness.dev.${createHash('sha256').update(options.appRoot).digest('hex').slice(0, 12)}`,
-      CFBundleName: 'Harness Dev',
-      CFBundleDisplayName: 'Harness Dev',
+      CFBundleIdentifier: `${options.product?.appId ?? 'com.deepseek.harness'}.dev.${createHash('sha256').update(options.appRoot).digest('hex').slice(0, 12)}`,
+      CFBundleName: name,
+      CFBundleDisplayName: name,
       CFBundleExecutable: 'HarnessDev',
-      CFBundleURLTypes: [{ CFBundleURLName: 'DeepSeek Harness', CFBundleURLSchemes: ['dsh'], CFBundleTypeRole: 'Viewer' }],
+      CFBundleURLTypes: [{ CFBundleURLName: options.product?.name ?? 'DeepSeek Harness', CFBundleURLSchemes: [options.product === undefined ? 'dsh' : `${options.product.protocol}-dev`], CFBundleTypeRole: 'Viewer' }],
     }
     for (const [key, value] of Object.entries(values)) {
       execFileSync('/usr/bin/plutil', ['-replace', key, '-json', JSON.stringify(value), plist])
@@ -60,8 +66,16 @@ export function prepareDevelopmentApp(options: DevelopmentAppOptions): string {
  * @returns shell program with literal arguments and environment values.
  */
 export function developmentLauncher(options: DevelopmentAppOptions, bundle: string): string {
+  if (options.product !== undefined && (options.productJson === undefined || options.artwork === undefined)) {
+    throw new Error('desktop development: standalone cold starts require product metadata and artwork')
+  }
   const environment = {
-    DSH_HOME: options.home,
+    ...(options.product === undefined ? { DSH_HOME: options.home } : {
+      DSH_DESKTOP_PRODUCT_HOME: options.home,
+      DSH_DESKTOP_PRODUCT: options.productJson ?? '',
+    }),
+    ...(options.primaryRuntime === undefined ? {} : { DSH_DESKTOP_PRIMARY_RUNTIME_DIR: options.primaryRuntime }),
+    ...(options.artwork === undefined ? {} : { DSH_DESKTOP_PRODUCT_ARTWORK: options.artwork }),
     DSH_DESKTOP_DEV_APP: '1',
     DSH_DESKTOP_HOST_INSPECT_PORT: String(options.hostPort),
     DSH_DESKTOP_OPEN_DEVTOOLS: options.openDevtools,

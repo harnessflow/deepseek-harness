@@ -26,6 +26,7 @@ import {
 import { capture } from '../../../scripts/release/process.ts'
 import { tarballFiles } from '../../../scripts/release/tarball.ts'
 import { resolveDesktopTargetBuildPaths } from './desktop-build-paths.mjs'
+import { desktopProductEnvironment } from '../src/product.mjs'
 
 const DSH_PACKAGE = '@deepseek-ai/dsh'
 const ROOT_PACKAGES = [DSH_PACKAGE, DESKTOP_HOST_PACKAGE] as const
@@ -58,6 +59,7 @@ function dependencyNames(manifest: Readonly<Record<string, unknown>>, section: s
  */
 export function selectDesktopPackageClosure(
   available: ReadonlyMap<string, PackedDesktopPackage>,
+  requiredBundles: readonly string[] = [],
 ): PackedDesktopPackage[] {
   const workspace = yaml.load(readFileSync(join(REPOSITORY_ROOT, 'pnpm-workspace.yaml'), 'utf8')) as { packages: string[] }
   const workspaceNames = new Set(globSync(workspace.packages.map(pattern => `${pattern}/package.json`), { cwd: REPOSITORY_ROOT })
@@ -74,13 +76,16 @@ export function selectDesktopPackageClosure(
         else if (workspaceNames.has(dependency)) {
           throw new Error(`desktop package set: ${name} requires unpacked package ${dependency}`)
         }
+        else if (requiredBundles.some(bundle => dependency.startsWith(`${bundle.split('/')[0]}/`))) {
+          throw new Error(`desktop package set: ${name} requires missing local distribution package ${dependency}`)
+        }
       }
     }
     for (const dependency of dependencyNames(packed.manifest, OPTIONAL_DEPENDENCY_SECTION)) {
       if (available.has(dependency)) visit(dependency)
     }
   }
-  for (const name of ROOT_PACKAGES) {
+  for (const name of [...ROOT_PACKAGES, ...requiredBundles]) {
     if (!available.has(name)) throw new Error(`desktop package set: packed inputs omit ${name}`)
     visit(name)
   }
@@ -128,8 +133,8 @@ export function assertDesktopHostPackageFiles(files: readonly string[]): void {
 }
 
 /** Prepare a package set from release tarball directories. */
-export function prepareDesktopPackageSet(inputs: readonly string[], output: string): void {
-  const selected = selectDesktopPackageClosure(packedPackages(inputs))
+export function prepareDesktopPackageSet(inputs: readonly string[], output: string, requiredBundles: readonly string[] = []): void {
+  const selected = selectDesktopPackageClosure(packedPackages(inputs), requiredBundles)
   const host = selected.find(packed => packed.manifest.name === DESKTOP_HOST_PACKAGE)
   if (host === undefined) throw new Error(`desktop package set: selected closure omits ${DESKTOP_HOST_PACKAGE}`)
   assertDesktopHostPackageFiles(tarballFiles(host.tarball))
@@ -169,9 +174,15 @@ function main(): void {
     options: { from: { type: 'string', multiple: true }, out: { type: 'string' } },
     allowPositionals: false,
   })
-  const inputs = (values.from ?? defaultInputs).map(path => resolve(REPOSITORY_ROOT, path))
+  const product = desktopProductEnvironment()
+  if (product !== undefined && process.env.DSH_DESKTOP_PRODUCT_TARBALLS === undefined) {
+    throw new Error('desktop package set: standalone distribution requires explicit local product tarballs')
+  }
+  const inputs = [...(values.from ?? defaultInputs),
+    ...(process.env.DSH_DESKTOP_PRODUCT_TARBALLS === undefined ? [] : [process.env.DSH_DESKTOP_PRODUCT_TARBALLS])]
+    .map(path => resolve(REPOSITORY_ROOT, path))
   const output = values.out === undefined ? buildPaths.packageSet : resolve(REPOSITORY_ROOT, values.out)
-  prepareDesktopPackageSet(inputs, output)
+  prepareDesktopPackageSet(inputs, output, product === undefined ? [] : [product.bundlePackage])
   console.log(`desktop package set: prepared ${output}`)
 }
 

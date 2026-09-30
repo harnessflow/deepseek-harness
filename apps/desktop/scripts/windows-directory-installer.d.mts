@@ -21,5 +21,8 @@ export function directoryInstallerExits(source: string): string
  */
 export function directoryUninstaller(source: string): string
 
+/** Build-only private home ownership from validated optional embedded product metadata. */
+export function desktopInstallerHomeDefines(metadata?: unknown): string
+
 /** Install the build-only adapter while retaining signed uninstaller generation. */
 export function installWindowsDirectoryInstaller(): void

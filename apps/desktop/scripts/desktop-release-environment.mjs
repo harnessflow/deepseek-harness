@@ -1,4 +1,5 @@
 /** Resolve public release identifiers supplied by the packaging environment. */
+import { desktopProductEnvironment } from '../src/product.mjs'
 
 /** Environment variable that supplies the Electron application identifier. */
 export const DESKTOP_APP_ID_ENV = 'DSH_DESKTOP_APP_ID'
@@ -61,6 +62,8 @@ export function resolveNpmRegistry(env) {
  * @returns {string} Reverse-DNS application identifier.
  */
 export function resolveDesktopAppId(env) {
+  const product = desktopProductEnvironment(env)
+  if (product !== undefined) return product.appId
   const appId = requireEnvironmentValue(env, DESKTOP_APP_ID_ENV)
   if (!/^[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+$/u.test(appId)) {
     throw new Error(`desktop release environment: ${DESKTOP_APP_ID_ENV} must be a reverse-DNS identifier`)

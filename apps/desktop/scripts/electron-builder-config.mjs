@@ -23,6 +23,8 @@ import { resolveDesktopAutoUpdateConfig } from './desktop-auto-update-environmen
 import { resolveDesktopBuildCommit } from './desktop-build-commit.mjs'
 import { resolveDesktopBuildVersion } from './desktop-build-version.mjs'
 import { resolveDesktopPolicyEnvironment } from './desktop-policy-environment.mjs'
+import { desktopProductEnvironment } from '../src/product.mjs'
+import { desktopArtworkEnvironment } from './desktop-artwork-environment.mjs'
 import { desktopTargetBuildPaths, resolveDesktopBuildTarget } from './desktop-build-paths.mjs'
 import { installWindowsDirectoryInstaller } from './windows-directory-installer.mjs'
 import { preserveWindowsRuntimeSignature, signWindowsCode } from './windows-runtime-signature.mjs'
@@ -50,7 +52,10 @@ export function createElectronBuilderConfig(
   preparedRuntime = undefined,
   preparedRuntimeVersion = undefined,
 ) {
-  const appId = resolveDesktopAppId(env)
+  const product = desktopProductEnvironment(env)
+  const artwork = desktopArtworkEnvironment(env)
+  const icon = name => artwork === undefined ? fileURLToPath(new URL(`../resources/${name}`, import.meta.url)) : join(artwork, name)
+  const appId = product?.appId ?? resolveDesktopAppId(env)
   const policy = resolveDesktopPolicyEnvironment(env)
   const targetPlatform = env.DSH_DESKTOP_TARGET_PLATFORM
   const resolvedPlatform = targetPlatform ?? hostPlatform
@@ -90,25 +95,27 @@ export function createElectronBuilderConfig(
   if (windowsSigner !== undefined) {
     installWindowsNsisBootstrapSigner({ sign: windowsSigner })
   }
-  const update = unsigned ? undefined : resolveDesktopAutoUpdateConfig(env, resolvedPlatform, resolvedArch)
+  const update = unsigned || product?.updateMode === 'manual' ? undefined : resolveDesktopAutoUpdateConfig(env, resolvedPlatform, resolvedArch)
   if (preparedRuntime !== undefined) buildPaths.dsh = preparedRuntime
   // electron-builder merges extraMetadata into the packaged manifest, so a build version here reaches
   // the artifact names, the update feed, and the installed app.getVersion() the updater compares against.
-  const productVersion = JSON.parse(readFileSync(fileURLToPath(new URL('../package.json', import.meta.url)), 'utf8')).version
+  const engineVersion = JSON.parse(readFileSync(fileURLToPath(new URL('../package.json', import.meta.url)), 'utf8')).version
+  const productVersion = product?.version ?? engineVersion
   const buildVersion = resolveDesktopBuildVersion(env, productVersion)
   const packaged = resolveDesktopBuildCommit(env)
   return {
     appId,
-    protocols: [{ name: 'DeepSeek Harness', schemes: ['dsh'] }],
+    protocols: [{ name: product?.name ?? 'DeepSeek Harness', schemes: [product?.protocol ?? 'dsh'] }],
     extraMetadata: {
       dshDesktopAppId: appId,
       dshMandatoryUpdatePolicy: policy,
+      ...(product === undefined ? {} : { name: product.packageName, version: buildVersion, dshDesktopProduct: product }),
       ...buildVersion === productVersion ? {} : { version: buildVersion },
       ...packaged === undefined ? {} : { dshBuildCommit: packaged.commit, dshBuildDirty: packaged.dirty },
     },
-    productName: 'DeepSeek Harness',
+    productName: product?.name ?? 'DeepSeek Harness',
     // Unsigned builds carry their own suffix so a shared file can never pass for a release artifact.
-    artifactName: `deepseek-harness-\${version}-\${os}-\${arch}${unsigned ? '-unsigned' : ''}.\${ext}`,
+    artifactName: `${product?.artifactPrefix ?? 'deepseek-harness'}-\${version}-\${os}-\${arch}${unsigned ? '-unsigned' : ''}.\${ext}`,
     directories: { output: unsigned ? buildPaths.unsignedArtifacts : buildPaths.artifacts },
     asar: true,
     electronDist: buildPaths.electron,
@@ -117,7 +124,8 @@ export function createElectronBuilderConfig(
       if (resolvedPlatform !== 'win32') return true
       await promisify(execFile)('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File',
         fileURLToPath(new URL('./prepare-windows-installer.ps1', import.meta.url)),
-        '-OutputDirectory', join(buildPaths.root, 'installer-ui')], {
+        '-OutputDirectory', join(buildPaths.root, 'installer-ui'),
+        ...(artwork === undefined ? [] : ['-ArtworkDirectory', artwork])], {
         env: scrubWindowsSigningEnvironment(env), windowsHide: true,
       })
       if (windowsSigner !== undefined) {
@@ -134,7 +142,10 @@ export function createElectronBuilderConfig(
       'lib/preload-platform-account.cjs',
       'lib/preload-update-dialog.cjs',
       'lib/preload-welcome.cjs',
-      'renderer/**/*',
+      ...(artwork === undefined ? ['renderer/**/*'] : [
+        'renderer/**/*', '!renderer/assets/welcome-brand.svg',
+        { from: join(artwork, 'welcome-brand.svg'), to: 'renderer/assets/welcome-brand.svg' },
+      ]),
       'package.json',
       { from: buildPaths.dsh, to: 'dsh', filter: ['**/*'] },
       // electron-builder excludes a source directory's root node_modules.
@@ -143,19 +154,18 @@ export function createElectronBuilderConfig(
     asarUnpack: unpack,
     extraResources: [
       { from: buildPaths.runtime, to: 'runtime' },
-      { from: fileURLToPath(new URL('../resources/icon-windows.png', import.meta.url)), to: 'icon.png' },
+      { from: icon('icon-windows.png'), to: 'icon.png' },
       // Windows tray bitmaps; macOS keeps the Dock and ships no menu bar icon.
-      ...(packagesWindows ? [{ from: fileURLToPath(new URL('../resources/tray-windows.ico', import.meta.url)), to: 'tray.ico' }] : []),
+      ...(packagesWindows ? [{ from: icon('tray-windows.ico'), to: 'tray.ico' }] : []),
     ],
     mac: {
-      icon: fileURLToPath(new URL('../resources/icon-macos.png', import.meta.url)),
+      icon: icon('icon-macos.png'),
       category: 'public.app-category.developer-tools',
       // macOS matches the application locale against this bundle, not Electron Framework resources.
-      extendInfo: { CFBundleLocalizations: ['en', 'zh_CN'] },
       identity: macOSSigning?.signingIdentity,
       forceCodeSigning: true,
       hardenedRuntime: true,
-      extendInfo: { NSMicrophoneUsageDescription: 'DeepSeek Harness uses your microphone to transcribe speech into message drafts.' },
+      extendInfo: { CFBundleLocalizations: ['en', 'zh_CN'], NSMicrophoneUsageDescription: `${product?.name ?? 'DeepSeek Harness'} uses your microphone to transcribe speech into message drafts.` },
       // ASAR-unpacked native runtime files are pre-signed; PAK resources are sealed by their enclosing bundle.
       signIgnore: ['/Contents/Resources/app\\.asar\\.unpacked/dsh(?:/|$)', '/Contents/Resources/runtime/primary-runtime(?:/|$)', '\\.pak$'],
       notarize: true,
@@ -189,7 +199,7 @@ export function createElectronBuilderConfig(
       // The bundled runtime declares whichever version prepared it: the product version for an ordinary
       // release, and a rewritten one for installed-update qualification.
       await verifyDesktopRuntime(buildPaths.dsh,
-        preparedRuntimeVersion ?? productVersion, { platform: resolvedPlatform, arch: resolvedArch })
+        preparedRuntimeVersion ?? engineVersion, { platform: resolvedPlatform, arch: resolvedArch })
       // Unsigned Windows builds skip electron-builder's afterSign hook.
       if (packagesWindows && unsigned) await verifyWindowsAsarUnpack(buildPaths.dsh, resourcesDir, windowsCode)
     },
@@ -219,7 +229,7 @@ export function createElectronBuilderConfig(
       )
     },
     win: {
-      icon: fileURLToPath(new URL('../resources/icon-windows.png', import.meta.url)),
+      icon: icon('icon-windows.png'),
       forceCodeSigning: !unsigned,
       signtoolOptions: {
         sign: windowsSigner,

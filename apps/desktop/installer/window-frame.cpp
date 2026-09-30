@@ -25,7 +25,7 @@ extern "C" __declspec(dllexport) int __cdecl InstallerReportExtractFailure(
     try {
         const std::wstring output = extract_report::ReadOutput(log);
         const std::wstring report = extract_report::Compose(code, archive, destination, output,
-            extract_report::Timestamp(), extract_report::WindowsVersion());
+            extract_report::Timestamp(), extract_report::WindowsVersion(), title);
         const bool saved = extract_report::WriteUtf8(reportPath, report);
         if (show) {
             std::wstring footer = saved ? savedFormat : unsaved;

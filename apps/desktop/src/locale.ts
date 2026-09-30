@@ -292,10 +292,13 @@ export interface DesktopLocale {
 }
 
 /** Resolve Electron's locale to one shipped Desktop dictionary. */
-export function resolveDesktopLocale(locale: string): DesktopLocale {
-  return locale.toLowerCase().startsWith('zh')
+export function resolveDesktopLocale(locale: string, productName = 'DeepSeek Harness'): DesktopLocale {
+  const selected: DesktopLocale = locale.toLowerCase().startsWith('zh')
     ? { id: 'zh-CN', messages: zh }
     : { id: 'en', messages: en }
+  if (productName === 'DeepSeek Harness') return selected
+  return { ...selected, messages: Object.fromEntries(Object.entries(selected.messages)
+    .map(([key, value]) => [key, value.replaceAll('DeepSeek Harness', () => productName)])) as DesktopLocale['messages'] }
 }
 
 /**
@@ -304,14 +307,14 @@ export function resolveDesktopLocale(locale: string): DesktopLocale {
  * @param languages - operating-system languages in preference order.
  * @returns the supported dictionary, falling back to English.
  */
-export function resolveDesktopStartupLocale(preference: string | null, languages: readonly string[]): DesktopLocale {
+export function resolveDesktopStartupLocale(preference: string | null, languages: readonly string[], productName = 'DeepSeek Harness'): DesktopLocale {
   const selected = preference?.toLowerCase()
-  if (selected === 'zh' || selected === 'en') return resolveDesktopLocale(selected)
+  if (selected === 'zh' || selected === 'en') return resolveDesktopLocale(selected, productName)
   for (const language of languages) {
     const primary = language.toLowerCase().split('-')[0]
-    if (primary === 'zh' || primary === 'en') return resolveDesktopLocale(primary)
+    if (primary === 'zh' || primary === 'en') return resolveDesktopLocale(primary, productName)
   }
-  return resolveDesktopLocale('en')
+  return resolveDesktopLocale('en', productName)
 }
 
 /** Replace named placeholders in one locale-owned message. */

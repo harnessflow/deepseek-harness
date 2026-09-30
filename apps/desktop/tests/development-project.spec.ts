@@ -2,7 +2,7 @@ import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { prepareDevelopmentProject } from '../scripts/development-project.ts'
+import { parseDevelopmentPackages, prepareDevelopmentProject } from '../scripts/development-project.ts'
 import { DESKTOP_HOST_PROTOCOL_VERSION } from '../src/host-protocol.ts'
 import { DesktopProjectManager } from '../src/project-manager.ts'
 import { resolveDesktopPaths } from '../src/paths.ts'
@@ -31,6 +31,39 @@ afterEach(() => {
 })
 
 describe('desktop development project', () => {
+  it.each([null, [], 'package', { '../outside': '/tmp' }, { '@deepseek-ai/dsh': '/tmp' },
+    { 'node_modules': '/tmp' }, { '@product/bundle': './relative' }])('rejects invalid external packages before touching project files: %j', (packages) => {
+    const root = temporaryRoot()
+    const project = join(root, 'project')
+    mkdirSync(project)
+    writeFileSync(join(project, 'sentinel'), 'keep')
+    expect(() => parseDevelopmentPackages(packages)).toThrow(/product packages|external package/u)
+    expect(readFileSync(join(project, 'sentinel'), 'utf8')).toBe('keep')
+  })
+
+  it('validates local external package identity and links it into the runtime', () => {
+    const root = temporaryRoot()
+    const cli = join(root, 'cli')
+    const host = join(root, 'host')
+    const dependency = join(root, 'bundle')
+    const hoisted = join(root, 'hoisted')
+    mkdirSync(cli)
+    mkdirSync(join(host, 'lib'), { recursive: true })
+    mkdirSync(dependency)
+    mkdirSync(hoisted)
+    writeFileSync(join(cli, 'package.json'), JSON.stringify({ name: '@deepseek-ai/dsh', version: '1.2.3' }))
+    writeFileSync(join(host, 'package.json'), JSON.stringify({ name: '@deepseek-ai/dsh-desktop-host', version: '1.2.3' }))
+    writeFileSync(join(host, 'lib/index.js'), '')
+    writeFileSync(join(dependency, 'package.json'), JSON.stringify({ name: '@product/bundle', version: '1.0.0' }))
+    const packages = parseDevelopmentPackages({ '@product/bundle': dependency })
+    const project = prepareDevelopmentProject({ projectDir: join(root, 'runtime'), cliDir: cli, hostDir: host,
+      dependencyDir: hoisted, release: release(), target: 'mac-arm64', packages })
+    expect(realpathSync(join(project, 'node_modules/@product/bundle'))).toBe(realpathSync(dependency))
+    expect(() => parseDevelopmentPackages({ '@product/other': dependency })).toThrow(/identity mismatch/u)
+    const descriptor = JSON.parse(readFileSync(join(project, 'desktop-runtime.json'), 'utf8')) as { sharedPackages: unknown[] }
+    expect(descriptor.sharedPackages).toContainEqual({ name: '@product/bundle', version: '1.0.0', path: 'node_modules/@product/bundle' })
+  })
+
   it('includes declared workspace packages missing from the hoist directory in the runtime inventory', () => {
     const root = temporaryRoot()
     const cli = join(root, 'cli')

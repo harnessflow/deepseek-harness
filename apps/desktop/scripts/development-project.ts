@@ -12,7 +12,7 @@ import {
   unlinkSync,
   writeFileSync,
 } from 'node:fs'
-import { dirname, join } from 'node:path'
+import { dirname, isAbsolute, join } from 'node:path'
 import { createDevelopmentProjectMetadata } from '../src/project-manager.ts'
 import type { DesktopRelease } from '../src/release.ts'
 import { DESKTOP_RUNTIME_FILE, type DesktopRuntimeDescriptor } from '../src/runtime-tree.ts'
@@ -39,10 +39,34 @@ export interface DevelopmentProjectOptions {
   readonly release: DesktopRelease
   /** Build target whose prepared payload the disposable project runs against. */
   readonly target: DesktopAutoUpdateTarget
+  /** Explicit local external packages; never discovered from sibling checkouts. */
+  readonly packages?: Readonly<Record<string, string>>
 }
 
 function readManifest(path: string): PackageManifest {
   return JSON.parse(readFileSync(path, 'utf8')) as PackageManifest
+}
+
+/** Validate explicit product package inputs before replacing any disposable project. */
+export function parseDevelopmentPackages(value: unknown): Readonly<Record<string, string>> {
+  if (value === undefined) return {}
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error('desktop development: product packages must be a package-to-directory object')
+  }
+  const packages: Record<string, string> = {}
+  for (const [name, directory] of Object.entries(value)) {
+    if (!/^(?:@[a-z0-9][a-z0-9._-]*\/)?[a-z0-9][a-z0-9._-]*$/u.test(name)
+      || name.startsWith('@deepseek-ai/') || name === 'node_modules') {
+      throw new Error(`desktop development: invalid or reserved external package name ${name}`)
+    }
+    if (typeof directory !== 'string' || !isAbsolute(directory)) {
+      throw new Error(`desktop development: external package directory must be absolute for ${name}`)
+    }
+    const manifest = readManifest(join(directory, 'package.json'))
+    if (manifest.name !== name) throw new Error(`desktop development: external package identity mismatch for ${name}`)
+    packages[name] = directory
+  }
+  return packages
 }
 
 function removeOwnedPath(path: string): void {
@@ -123,6 +147,7 @@ function mirrorWorkspaceDependencies(roots: readonly string[], destinationRoot: 
  * @returns the absolute project directory supplied by the caller.
  */
 export function prepareDevelopmentProject(options: DevelopmentProjectOptions): string {
+  const packages = parseDevelopmentPackages(options.packages)
   const cliManifest = readManifest(join(options.cliDir, 'package.json'))
   if (cliManifest.name !== '@deepseek-ai/dsh' || cliManifest.version !== options.release.version) {
     throw new Error(
@@ -158,6 +183,12 @@ export function prepareDevelopmentProject(options: DevelopmentProjectOptions): s
   const hostLink = join(destinationModules, '@deepseek-ai', 'dsh-desktop-host')
   removeOwnedPath(hostLink)
   linkDirectory(options.hostDir, hostLink)
+  for (const [name, directory] of Object.entries(packages)) {
+    const destination = join(destinationModules, name)
+    removeOwnedPath(destination)
+    linkDirectory(directory, destination)
+    names.push(name)
+  }
   const sharedPackages = [...new Set([...names, '@deepseek-ai/dsh', '@deepseek-ai/dsh-desktop-host'])].flatMap((name) => {
     const manifest = readManifest(join(destinationModules, name, 'package.json'))
     return typeof manifest.version === 'string' ? [{ name, version: manifest.version, path: `node_modules/${name}` }] : []

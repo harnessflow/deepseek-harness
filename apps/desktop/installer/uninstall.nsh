@@ -20,8 +20,16 @@ Function un.CleanData
   ${IfNot} ${Errors}
     Return
   ${EndIf}
-  ; Only a DSH_HOME published as a Windows environment variable is visible here.
-  ReadEnvStr $UnHome DSH_HOME
+  ; Preserve the distribution home; uninstall never removes its profiles, sessions or artifacts.
+  !ifdef DSH_DISTRIBUTION_HOME_ENV
+    ReadEnvStr $UnHome "${DSH_DISTRIBUTION_HOME_ENV}"
+    ${If} $UnHome == ""
+      StrCpy $UnHome "$PROFILE\${DSH_DISTRIBUTION_HOME_DIRECTORY}"
+    ${EndIf}
+  !else
+    ; Only a DSH_HOME published as a Windows environment variable is visible here.
+    ReadEnvStr $UnHome DSH_HOME
+  !endif
   ClearErrors
   StrCpy $UnTarget "$APPDATA\${PRODUCT_FILENAME}"
   Call un.RemoveData

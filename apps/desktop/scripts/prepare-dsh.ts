@@ -32,6 +32,7 @@ import {
 import { resolveDesktopBuildTarget, resolveDesktopTargetBuildPaths } from './desktop-build-paths.mjs'
 import { desktopRuntimeFileExclusion } from './runtime-file-policy.ts'
 import { selectOfficeEngine } from '../../../scripts/libreoffice-packages.mjs'
+import { desktopProductEnvironment } from '../src/product.mjs'
 
 const APP_ROOT = resolve(import.meta.dirname, '..')
 const BUILD_PATHS = resolveDesktopTargetBuildPaths()
@@ -120,7 +121,8 @@ async function main(): Promise<void> {
     await packagingStep(process.env.DSH_DESKTOP_PACKAGING_RUN_DIR, 'runtime:stage-packages', async () => {
       copyFileSync(join(PACKAGE_SET_ROOT, DESKTOP_PACKAGE_SET_FILE), join(BUILD_ROOT, DESKTOP_PACKAGE_SET_FILE))
       cpSync(join(PACKAGE_SET_ROOT, DESKTOP_PACKAGES_DIR), join(BUILD_ROOT, DESKTOP_PACKAGES_DIR), { recursive: true })
-      createRuntimeProjectMetadata(BUILD_ROOT, release)
+      const product = desktopProductEnvironment()
+      createRuntimeProjectMetadata(BUILD_ROOT, release, product === undefined ? [] : [product.bundlePackage])
     })
     await packagingStep(process.env.DSH_DESKTOP_PACKAGING_RUN_DIR, 'runtime:lockfile', () => runPnpm(['install', '--lockfile-only']))
     verifyDesktopCoreLockfile(

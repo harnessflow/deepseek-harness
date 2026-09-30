@@ -2,6 +2,7 @@
 import { copyFile, mkdir, readFile, writeFile } from 'node:fs/promises'
 import { createRequire } from 'node:module'
 import { dirname, join } from 'node:path'
+import { parseDesktopProduct } from '../src/product.mjs'
 
 const require = createRequire(import.meta.url)
 const templates = join(dirname(require.resolve('app-builder-lib/package.json')), 'templates/nsis')
@@ -10,6 +11,14 @@ const patched = Symbol.for('@deepseek-ai/dsh-desktop/directory-installer')
 function replaceOnce(source, before, after) {
   if (source.split(before).length !== 2) throw new Error(`Desktop NSIS template changed: ${before}`)
   return source.replace(before, after)
+}
+
+/** Build-only home ownership passed to the uninstaller from embedded product metadata. */
+export function desktopInstallerHomeDefines(metadata) {
+  const product = parseDesktopProduct(metadata)
+  if (product === undefined) return ''
+  const variable = `${product.protocol.toUpperCase().replaceAll('-', '_')}_HOME`
+  return `!define DSH_DISTRIBUTION_HOME_ENV "${variable}"\n!define DSH_DISTRIBUTION_HOME_DIRECTORY "${product.homeDirectory}"\n`
 }
 
 /**
@@ -80,7 +89,8 @@ export function installWindowsDirectoryInstaller() {
     const uninstaller = join(directory, 'uninstaller.nsh')
     await writeFile(uninstaller, directoryUninstaller(await readFile(join(templates, 'uninstaller.nsh'), 'utf8')))
     adapted = replaceOnce(adapted, '!include "uninstaller.nsh"', `!include "${uninstaller}"`)
-    return `!define DSH_UPDATER_CACHE_NAME "${this.packager.appInfo.updaterCacheDirName}"\n!define DSH_SEVENZIP_PATH "${tool}"\n!define DSH_SEVENZIP_LICENSE_DIR "${dirname(dirname(sourceTool))}"\n${await compute.call(this, adapted, ...args)}`
+    const home = desktopInstallerHomeDefines(this.packager.config.extraMetadata?.dshDesktopProduct)
+    return `${home}!define DSH_UPDATER_CACHE_NAME "${this.packager.appInfo.updaterCacheDirName}"\n!define DSH_SEVENZIP_PATH "${tool}"\n!define DSH_SEVENZIP_LICENSE_DIR "${dirname(dirname(sourceTool))}"\n${await compute.call(this, adapted, ...args)}`
   }
 }
 

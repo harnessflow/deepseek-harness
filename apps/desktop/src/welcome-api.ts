@@ -46,6 +46,8 @@ export interface WelcomeOperations {
 
 /** The renderer receives localized copy, login operations, and safe account snapshots. */
 export type WelcomeApi = DesktopLocale & WelcomeOperations & {
+  /** Shell-selected packaged branding; absent retains the official resource. */
+  readonly brandImage?: string
   /** @param listener - safe account snapshot recipient. @returns subscription disposer. */
   onAccountState(listener: (state: AccountView) => void): () => void
 }

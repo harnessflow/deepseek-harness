@@ -1,5 +1,6 @@
 /** Resolve the required policy service from the same deployment as updater publication. */
 import { resolveDesktopAutoUpdateEnvironment } from './desktop-auto-update-environment.mjs'
+import { desktopProductEnvironment } from '../src/product.mjs'
 
 function origin(value, name) {
   let url
@@ -16,6 +17,7 @@ function origin(value, name) {
  * @returns {{ origin: string, allowedPageOrigins: string[], authentication: 'anonymous' | 'feishu-test', [key: string]: unknown }} Selected policy.
  */
 export function resolveDesktopPolicyEnvironment(environment) {
+  if (desktopProductEnvironment(environment)?.updateMode === 'manual') return undefined
   const deployment = resolveDesktopAutoUpdateEnvironment(environment)
   const name = deployment === 'test' ? 'DSH_DESKTOP_MANDATORY_UPDATE_TEST_ORIGIN' : 'DSH_DESKTOP_MANDATORY_UPDATE_PROD_ORIGIN'
   const selected = origin(environment[name], name)

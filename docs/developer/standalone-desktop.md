@@ -1,0 +1,57 @@
+---
+description: "Native Desktop inputs for independently branded distributions, private local state, bundled extensions, and manual upgrades."
+---
+
+# Standalone Desktop distributions
+
+English | [中文](standalone-desktop.zh.md)
+
+## Summary
+
+Distributors can build one independently identified Desktop application without installing the official application beside it. The application keeps the native workbench, Desktop Host, runtime preparation, signing checks, and plugin composition. Explicit product inputs select private state, artwork, and mandatory local bundles. A manual distribution has no official update feed or mandatory-update policy; platform installation still requires separate validation.
+
+## Table of Contents
+
+- [Distribution inputs](#distribution-inputs)
+- [State and recovery](#state-and-recovery)
+- [Packaging boundaries](#packaging-boundaries)
+- [Verification](#verification)
+- [Dev Note](#dev-note)
+
+-----
+
+## Distribution inputs
+<a id="distribution-inputs"></a>
+
+The deployment launcher supplies `DSH_DESKTOP_PRODUCT` as a validated JSON identity and `DSH_DESKTOP_PRODUCT_ARTWORK` as an absolute artwork directory. The record selects product and package names, version, app ID, artifact prefix, OS protocol, home directory, personal-agent subdirectory, mandatory bundle, and `manual` update mode. Omitted metadata preserves the official defaults; invalid standalone metadata fails instead of falling back to those defaults. The internal `dsh-app` protocol and upstream package names remain unchanged.
+
+Development additionally supplies `DSH_DESKTOP_PRODUCT_HOME` and `DSH_DESKTOP_PRODUCT_PACKAGES`, an explicit package-to-absolute-directory JSON object. Package names cannot replace the upstream namespace or escape the generated project. The macOS development launcher records product identity, artwork, and runtime location for OS-initiated cold starts. Packaged applications read their embedded `dshDesktopProduct` manifest record instead of an inherited product JSON variable.
+
+## State and recovery
+<a id="state-and-recovery"></a>
+
+The shell resolves private state before opening Electron storage or starting Desktop Host. Installed homes use `<PROTOCOL>_HOME` or the product's home directory beneath the OS user home; development-only home overrides do not apply to installed applications. Resolution rejects overlap with official default and inherited custom homes, development/installed overlap, dangling links, and redirected state children. Electron browser data, logs, profiles, and personal agents remain under the selected private home.
+
+The parent process retains inherited official-root variables for restart checks. Only Desktop Host receives private `DSH_HOME` and `DSH_AGENTS_HOME` values. Native credential lookup order, approval, sandbox behavior, and persistence formats are unchanged. Profile recovery retains mandatory distribution bundles, and missing packaged bundles produce a reinstall error instead of a silently reduced application.
+
+## Packaging boundaries
+<a id="packaging-boundaries"></a>
+
+The native assembler adds `DSH_DESKTOP_PRODUCT_TARBALLS` to its explicit local package inputs and includes the mandatory bundle's dependency closure. Missing distribution dependencies do not fall back to downloading a private package from a registry. Desktop Host receives the bundle's installed `resources/skills` path through `DSH_DESKTOP_BUNDLED_SKILL_DIR`; the bundle owns its plugin configuration and Skill contents.
+
+Manual distributions omit both the feed and mandatory-update policy, including when official policy variables are inherited. Product version and engine version remain separate: the product labels the installer while native runtime compatibility checks retain the engine version. `DSH_DESKTOP_RELEASE_ENV_FILE` selects the distribution's own signing configuration; native host, signing, notarization, and payload guards still apply. This contract does not authorize publishing packages or product assets.
+
+## Verification
+<a id="verification"></a>
+
+The [standalone tests](../../apps/desktop/tests/product.spec.ts) cover identity rejection, private state, manual builder configuration, recovery, and package closure. The [development tests](../../apps/desktop/tests/development-app.spec.ts) execute literal cold-start launcher fixtures, and [project tests](../../apps/desktop/tests/development-project.spec.ts) cover external package validation. These checks and the native Desktop build are local evidence, not installed-platform or real-model audit evidence. Windows installer execution and signing require their native platform resources.
+
+## Dev Note
+<a id="dev-note"></a>
+
+<details>
+<summary>Development context</summary>
+
+None.
+
+</details>

@@ -3,11 +3,26 @@ import { readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { dirname, join } from 'node:path'
 import { expect, it } from 'vitest'
-import { directoryInstallerExits, directoryInstallSection, directoryUninstaller } from '../scripts/windows-directory-installer.mjs'
+import { desktopInstallerHomeDefines, directoryInstallerExits, directoryInstallSection, directoryUninstaller } from '../scripts/windows-directory-installer.mjs'
 
 const require = createRequire(import.meta.url)
 const section = readFileSync(join(dirname(require.resolve('app-builder-lib/package.json')),
   'templates/nsis/installSection.nsh'), 'utf8')
+
+it('protects the standalone home without borrowing the official environment variable', () => {
+  expect(desktopInstallerHomeDefines()).toBe('')
+  const identity = { name: 'Product Test', version: '1.0.0', appId: 'org.example.product',
+    packageName: '@example/product', artifactPrefix: 'product', protocol: 'product-test',
+    homeDirectory: '.product-test', agentsDirectory: 'agents', bundlePackage: '@example/bundle', updateMode: 'manual' }
+  const defines = desktopInstallerHomeDefines(identity)
+  expect(defines).toContain('DSH_DISTRIBUTION_HOME_ENV "PRODUCT_TEST_HOME"')
+  expect(defines).toContain('DSH_DISTRIBUTION_HOME_DIRECTORY ".product-test"')
+  expect(defines).not.toContain('"DSH_HOME"')
+  expect(() => desktopInstallerHomeDefines({ ...identity, homeDirectory: 'bad"definition' })).toThrow(/invalid/u)
+  const uninstaller = readFileSync(new URL('../installer/uninstall.nsh', import.meta.url), 'utf8')
+  expect(uninstaller).toContain('ReadEnvStr $UnHome "${DSH_DISTRIBUTION_HOME_ENV}"')
+  expect(uninstaller).toContain('$PROFILE\\${DSH_DISTRIBUTION_HOME_DIRECTORY}')
+})
 
 it('keeps data cleanup out of the upstream template while retaining application removal and registration cleanup', () => {
   const source = readFileSync(join(dirname(require.resolve('app-builder-lib/package.json')), 'templates/nsis/uninstaller.nsh'), 'utf8')

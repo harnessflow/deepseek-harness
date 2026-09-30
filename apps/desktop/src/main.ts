@@ -3,7 +3,10 @@ import { WINDOWS_TITLEBAR_HEIGHT } from './windows-layout.ts'
 
 import { readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { homedir } from 'node:os'
+import { mkdirSync } from 'node:fs'
+import { desktopProductEnvironment, desktopProductPaths, parseDesktopProduct } from './product.mjs'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import {
   app,
   BrowserWindow,
@@ -76,10 +79,28 @@ const rendererConsole = new RendererConsoleTail()
 
 // Platform-conventional logs directory (macOS ~/Library/Logs/<name>, otherwise under userData);
 // set before ready so the first fatal report already resolves under it.
-app.setAppLogsPath()
+const applicationManifest = app.isPackaged
+  ? JSON.parse(await readFile(join(app.getAppPath(), 'package.json'), 'utf8')) as { dshDesktopProduct?: unknown }
+  : undefined
+const desktopProduct = app.isPackaged ? parseDesktopProduct(applicationManifest?.dshDesktopProduct) : desktopProductEnvironment()
+const productState = desktopProduct === undefined ? undefined : desktopProductPaths(desktopProduct, homedir(), process.env, app.isPackaged)
+const developmentArtwork = app.isPackaged ? undefined : process.env.DSH_DESKTOP_PRODUCT_ARTWORK
+if (desktopProduct !== undefined && !app.isPackaged && developmentArtwork === undefined) {
+  throw new Error('desktop product: native development requires explicit artwork')
+}
+if (desktopProduct !== undefined && productState !== undefined) {
+  const paths = productState
+  app.setName(desktopProduct.name)
+  for (const path of [paths.userData, paths.sessionData, paths.logs]) mkdirSync(path, { recursive: true, mode: 0o700 })
+  app.setPath('userData', paths.userData)
+  app.setPath('sessionData', paths.sessionData)
+  app.setAppLogsPath(paths.logs)
+} else app.setAppLogsPath()
+const productBundles = desktopProduct === undefined ? [] : [desktopProduct.bundlePackage]
+const productProtocol = desktopProduct === undefined ? 'dsh' : app.isPackaged ? desktopProduct.protocol : `${desktopProduct.protocol}-dev`
 
 function currentDesktopLocale(): ReturnType<typeof resolveDesktopLocale> {
-  return resolveDesktopLocale(windowsLanguage ?? app.getLocale())
+  return resolveDesktopLocale(windowsLanguage ?? app.getLocale(), desktopProduct?.name)
 }
 /** Quit without the task confirmation; the caller has already decided the application must stop. */
 function quitWithoutConfirmation(): void {
@@ -91,7 +112,7 @@ const recovery = new DesktopFatalRecovery({
   show: options => dialog.showMessageBox(options),
   stop: () => { shuttingDown = true; return stopForRecovery() },
   disablePlugins: async () => {
-    const manager = new DesktopProjectManager(resolveDesktopPaths(), runtimeResources())
+    const manager = new DesktopProjectManager(resolveDesktopPaths(productState?.home), runtimeResources(), productBundles)
     const backupPath = await manager.disableAllPlugins()
     console.info('Desktop profile recovery completed:', { profilePatchBackup: backupPath ?? null, homePatch: 'unchanged' })
   },
@@ -312,13 +333,16 @@ async function main(): Promise<void> {
   const journalDirectory = process.env.DSH_DESKTOP_UPDATE_JOURNAL_DIR
   const updateJournal = journalDirectory === undefined ? undefined : new DesktopUpdateJournal(journalDirectory, app.getVersion())
   const resources = runtimeResources()
-  const paths = resolveDesktopPaths()
+  const hostEnvironment = desktopProduct === undefined || productState === undefined ? process.env : { ...process.env,
+    DSH_HOME: productState.home, DSH_AGENTS_HOME: productState.agents,
+    DSH_DESKTOP_BUNDLED_SKILL_DIR: join(resources.dsh, 'node_modules', desktopProduct.bundlePackage, 'resources', 'skills') }
+  const paths = resolveDesktopPaths(productState?.home)
   const development = !app.isPackaged
   const primaryRuntime = development
     ? developmentPrimaryRuntime()
     : join(process.resourcesPath, 'runtime', 'primary-runtime')
   const activeProject = paths.profile
-  const manager = new DesktopProjectManager(paths, resources)
+  const manager = new DesktopProjectManager(paths, resources, productBundles)
   let quitting = false
   let startup: Promise<void> | undefined
   let workspaceRecovery: Promise<void> | undefined
@@ -333,7 +357,7 @@ async function main(): Promise<void> {
   let updateStopFailure: DesktopHostUncleanExitError | undefined
   let updateState: DesktopUpdateState = { phase: 'idle' }
   const systemLanguages = app.getPreferredSystemLanguages()
-  let locale = resolveDesktopStartupLocale(null, systemLanguages)
+  let locale = resolveDesktopStartupLocale(null, systemLanguages, desktopProduct?.name)
   windowsLanguage = locale.id
   let mandatoryPolicy: DesktopMandatoryUpdatePolicy | undefined
   let mandatoryUI: DesktopMandatoryUpdateWindow | undefined
@@ -408,7 +432,7 @@ async function main(): Promise<void> {
   const backend = new DesktopBackendController((onFailure) => {
     const hostInspectPort = developmentHostInspectPort(development)
     const host = new DesktopHostProcess(resources.node, resources.dsh, activeProject,
-      hostInspectPort, process.env, onFailure,
+      hostInspectPort, hostEnvironment, onFailure,
       primaryRuntime,
       resources, (next) => { platformView.setSession(next) })
     return {
@@ -591,6 +615,8 @@ async function main(): Promise<void> {
       }
       return true
     },
+    undefined,
+    desktopProduct === undefined ? undefined : () => false,
   )
 
   const updateSchedule = new DesktopUpdateSchedule(updates, resolveDesktopUpdateScheduleConfig(process.env))
@@ -712,7 +738,7 @@ async function main(): Promise<void> {
     const window = mainWindow
     if (window === undefined || event.sender !== window.webContents || event.senderFrame !== window.webContents.mainFrame
       || typeof next !== 'string') return
-    const current = resolveDesktopStartupLocale(next, systemLanguages)
+    const current = resolveDesktopStartupLocale(next, systemLanguages, desktopProduct?.name)
     if (current.id === locale.id) return
     locale = current
     platformView.notifyLocaleChanged()
@@ -871,10 +897,10 @@ async function main(): Promise<void> {
     updates.dispose()
   })
 
-  const applicationIconPath = development ? join(app.getAppPath(), 'resources', 'icon-windows.png')
+  const applicationIconPath = development ? join(developmentArtwork ?? join(app.getAppPath(), 'resources'), 'icon-windows.png')
     : join(process.resourcesPath, 'icon.png')
   app.setAboutPanelOptions({
-    applicationName: 'DeepSeek Harness',
+    applicationName: desktopProduct?.name ?? 'DeepSeek Harness',
     applicationVersion: app.getVersion(),
     // The release has no separate build number; omit Electron's bundle version.
     version: '',
@@ -901,7 +927,7 @@ async function main(): Promise<void> {
         click: () => { void showAbout().catch((error: unknown) => { console.error(error) }) } }
       : { label: currentDesktopLocale().messages.aboutMenu, role: 'about' },
     { type: 'separator' },
-    { label: currentDesktopLocale().messages.checkUpdatesMenu, click: () => { void openUpdatePrompt(true) } },
+    ...desktopProduct?.updateMode === 'manual' ? [] : [{ label: currentDesktopLocale().messages.checkUpdatesMenu, click: () => { void openUpdatePrompt(true) } }],
     ...development ? [
       { type: 'separator' as const },
       { label: currentDesktopLocale().messages.reloadPageMenu, role: 'reload' as const },
@@ -928,7 +954,7 @@ async function main(): Promise<void> {
     tray?.relabel()
   }
   refreshApplicationMenu()
-  const trayIconPath = development ? join(app.getAppPath(), 'resources', 'tray-windows.ico') : join(process.resourcesPath, 'tray.ico')
+  const trayIconPath = development ? join(developmentArtwork ?? join(app.getAppPath(), 'resources'), 'tray-windows.ico') : join(process.resourcesPath, 'tray.ico')
   if (process.platform === 'win32') {
     // The tray is the way back to a hidden window; without it, relaunching the application still focuses it.
     try {
@@ -1117,7 +1143,7 @@ async function main(): Promise<void> {
           return { ok: true }
         },
         skip: enterWorkspace,
-      })
+      }, developmentArtwork === undefined ? undefined : pathToFileURL(join(developmentArtwork, 'welcome-brand.svg')).href)
       const window = welcomeWindow
       window.once('closed', () => {
         void welcomeBackend?.account.state().then((state) => {
@@ -1142,7 +1168,7 @@ async function main(): Promise<void> {
     if (quitting || recovery.active) return
     const state = await readWelcomeState()
     if (isQuitting() || backend.state.phase !== 'ready') return
-    locale = resolveDesktopStartupLocale(state.localePreference, systemLanguages)
+    locale = resolveDesktopStartupLocale(state.localePreference, systemLanguages, desktopProduct?.name)
     windowsLanguage = locale.id
     refreshApplicationMenu()
     if (!enteredWorkspace && needsWelcome({ loggedIn: state.loggedIn, hasApiKey: state.hasApiKey })) {
@@ -1169,10 +1195,10 @@ async function main(): Promise<void> {
     window.focus()
   }
 
-  if (app.isPackaged || process.env.DSH_DESKTOP_DEV_APP === '1') app.setAsDefaultProtocolClient('dsh')
+  if (app.isPackaged || process.env.DSH_DESKTOP_DEV_APP === '1') app.setAsDefaultProtocolClient(productProtocol)
   app.on('open-url', (event, url) => {
     event.preventDefault()
-    if (url === 'dsh://open' || url === 'dsh://open/') focusPrimaryWindow()
+    if (url === `${productProtocol}://open` || url === `${productProtocol}://open/`) focusPrimaryWindow()
   })
 
   app.on('activate', (_event, hasVisibleWindows) => {
@@ -1228,7 +1254,7 @@ async function main(): Promise<void> {
   const manifest: unknown = JSON.parse(await readFile(join(app.getAppPath(), 'package.json'), 'utf8'))
   if (typeof manifest !== 'object' || manifest === null) throw new Error('desktop policy: invalid application manifest')
   const developmentPolicy = app.isPackaged ? undefined : process.env.DSH_DESKTOP_MANDATORY_UPDATE_CONFIG
-  const policyInput: unknown = app.isPackaged
+  const policyInput: unknown = desktopProduct?.updateMode === 'manual' ? undefined : app.isPackaged
     ? ('dshMandatoryUpdatePolicy' in manifest ? manifest.dshMandatoryUpdatePolicy : undefined)
     : developmentPolicy === undefined ? undefined : JSON.parse(developmentPolicy) as unknown
   const policyConfig = resolveDesktopPolicyConfig(policyInput, !app.isPackaged)

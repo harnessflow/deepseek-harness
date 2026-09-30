@@ -11,6 +11,7 @@ import { resolveDesktopPolicyEnvironment } from './desktop-policy-environment.mj
 import { resolveMacOSPackageSettings } from './macos-package-settings.mjs'
 import { resolveWindowsSignatureCacheDirectory } from './windows-signature-cache-directory.mjs'
 import { resolveWindowsPackageSettings } from './windows-package-settings.mjs'
+import { desktopProductEnvironment } from '../src/product.mjs'
 
 const APP_ROOT = fileURLToPath(new URL('..', import.meta.url))
 const SHARED_SETTING = /^(?:DSH_DESKTOP_(?:APP_ID|AUTO_UPDATE_ENV|NPM_REGISTRY|MANDATORY_UPDATE_(?:CONFIG|(?:TEST|PROD)_ORIGIN))|DOWNLOAD_TEST_RELEASE_ID|DOWNLOAD_(?:TEST|PROD)_(?:ORIGIN|COS_BUCKET|COS_SECRET_ID|COS_SECRET_KEY))$/u
@@ -27,7 +28,9 @@ const FILE_SETTINGS = ['DSH_DESKTOP_WINDOWS_CER_FILE', 'DSH_DESKTOP_WINDOWS_SIGN
  * @returns {NodeJS.ProcessEnv} Isolated environment with file-owned release settings.
  */
 export function loadDesktopPackageEnvironment(platform, environment = process.env, appRoot = APP_ROOT) {
-  const path = join(appRoot, platform === 'win32' ? '.env.windows' : '.env.macos')
+  const path = environment.DSH_DESKTOP_RELEASE_ENV_FILE === undefined
+    ? join(appRoot, platform === 'win32' ? '.env.windows' : '.env.macos')
+    : resolve(environment.DSH_DESKTOP_RELEASE_ENV_FILE)
   let contents
   try {
     contents = readFileSync(path, 'utf8')
@@ -83,7 +86,9 @@ export function validateDesktopPackageEnvironment(environment, target, options =
   if (target.platform === 'darwin') resolveMacOSPackageSettings(environment)
   else resolveWindowsPackageSettings(environment)
   if (options.unsigned) return
-  if (!options.prepareOnly) resolveDesktopAutoUpdateConfig(environment, target.platform, target.arch)
+  if (!options.prepareOnly && desktopProductEnvironment(environment)?.updateMode !== 'manual') {
+    resolveDesktopAutoUpdateConfig(environment, target.platform, target.arch)
+  }
   if (target.platform === 'win32') {
     if (!options.prepareOnly) createWindowsTokenSigner({
       certificateFile: environment.DSH_DESKTOP_WINDOWS_CER_FILE,

@@ -8,9 +8,11 @@ import { parseArgs } from 'node:util'
 import { DESKTOP_HOST_PROTOCOL_VERSION } from '../src/host-protocol.ts'
 import type { DesktopRelease } from '../src/release.ts'
 import { developmentRuntimeDirectory, resolveDesktopBuildTarget } from './desktop-build-paths.mjs'
-import { prepareDevelopmentProject } from './development-project.ts'
+import { parseDevelopmentPackages, prepareDevelopmentProject } from './development-project.ts'
 import { prepareDevelopmentApp } from './development-app.ts'
 import { preparePrimaryRuntime } from './prepare-primary-runtime.ts'
+import { desktopProductEnvironment } from '../src/product.mjs'
+import { desktopArtworkEnvironment } from './desktop-artwork-environment.mjs'
 
 const APP_ROOT = resolve(import.meta.dirname, '..')
 const REPOSITORY_ROOT = resolve(APP_ROOT, '..', '..')
@@ -63,11 +65,13 @@ async function launchElectron(): Promise<void> {
   const mainPort = debugPort('DSH_DESKTOP_MAIN_INSPECT_PORT', 9229)
   const rendererPort = debugPort('DSH_DESKTOP_RENDERER_DEBUG_PORT', 9222)
   const hostPort = debugPort('DSH_DESKTOP_HOST_INSPECT_PORT', 9230)
-  const home = resolve(process.env.DSH_HOME ?? join(DEVELOPMENT_ROOT, 'home'))
+  const product = desktopProductEnvironment()
+  const home = resolve(product === undefined ? process.env.DSH_HOME ?? join(DEVELOPMENT_ROOT, 'home')
+    : process.env.DSH_DESKTOP_PRODUCT_HOME ?? join(DEVELOPMENT_ROOT, product.protocol, 'home'))
   const userData = resolve(process.env.DSH_DESKTOP_USER_DATA_DIR ?? join(DEVELOPMENT_ROOT, 'electron-user-data'))
   const environment: NodeJS.ProcessEnv = {
     ...process.env,
-    DSH_HOME: home,
+    ...(product === undefined ? { DSH_HOME: home } : { DSH_DESKTOP_PRODUCT_HOME: home }),
     DSH_DESKTOP_PRIMARY_RUNTIME_DIR: process.env.DSH_DESKTOP_PRIMARY_RUNTIME_DIR ?? developmentRuntimeDirectory(),
     DSH_DESKTOP_HOST_INSPECT_PORT: String(hostPort),
     DSH_DESKTOP_OPEN_DEVTOOLS: process.env.DSH_DESKTOP_OPEN_DEVTOOLS ?? '1',
@@ -78,7 +82,10 @@ async function launchElectron(): Promise<void> {
   console.log(`desktop development: inspectors main=${String(mainPort)}, renderer=${String(rendererPort)}, host=${String(hostPort)}`)
   if (process.platform === 'darwin') {
     const executable = prepareDevelopmentApp({ electron, appRoot: APP_ROOT, directory: DEVELOPMENT_ROOT, home, userData,
-      mainPort, rendererPort, hostPort, openDevtools: environment.DSH_DESKTOP_OPEN_DEVTOOLS! })
+      mainPort, rendererPort, hostPort, openDevtools: environment.DSH_DESKTOP_OPEN_DEVTOOLS!,
+      ...(product === undefined ? {} : { product, productJson: environment.DSH_DESKTOP_PRODUCT }),
+      ...(product === undefined ? {} : { artwork: desktopArtworkEnvironment(environment) }),
+      primaryRuntime: environment.DSH_DESKTOP_PRIMARY_RUNTIME_DIR })
     await run(executable, [], APP_ROOT, environment)
     return
   }
@@ -119,6 +126,9 @@ async function main(): Promise<void> {
     dependencyDir: join(REPOSITORY_ROOT, 'node_modules', '.pnpm', 'node_modules'),
     release,
     target: resolveDesktopBuildTarget(),
+    ...(process.env.DSH_DESKTOP_PRODUCT_PACKAGES === undefined ? {} : {
+      packages: parseDevelopmentPackages(JSON.parse(process.env.DSH_DESKTOP_PRODUCT_PACKAGES)),
+    }),
   })
   await preparePrimaryRuntime()
   await launchElectron()
