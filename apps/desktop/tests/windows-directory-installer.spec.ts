@@ -17,11 +17,26 @@ it('protects the standalone home without borrowing the official environment vari
   const defines = desktopInstallerHomeDefines(identity)
   expect(defines).toContain('DSH_DISTRIBUTION_HOME_ENV "PRODUCT_TEST_HOME"')
   expect(defines).toContain('DSH_DISTRIBUTION_HOME_DIRECTORY ".product-test"')
+  expect(defines).toContain('DSH_DISTRIBUTION_PROTOCOL "product-test"')
   expect(defines).not.toContain('"DSH_HOME"')
   expect(() => desktopInstallerHomeDefines({ ...identity, homeDirectory: 'bad"definition' })).toThrow(/invalid/u)
   const uninstaller = readFileSync(new URL('../installer/uninstall.nsh', import.meta.url), 'utf8')
   expect(uninstaller).toContain('ReadEnvStr $UnHome "${DSH_DISTRIBUTION_HOME_ENV}"')
   expect(uninstaller).toContain('$PROFILE\\${DSH_DISTRIBUTION_HOME_DIRECTORY}')
+})
+
+it('unregisters only the standalone protocol owned by the removed installation, outside updates', () => {
+  const source = readFileSync(new URL('../scripts/installer.nsh', import.meta.url), 'utf8')
+  const hook = source.split('!macro customUnInstall\n')[1]?.split('!macroend')[0]
+  expect(hook).toContain('!ifdef DSH_DISTRIBUTION_PROTOCOL')
+  expect(hook).toContain('${IfNot} ${isUpdated}')
+  expect(hook).toContain('ReadRegStr $R0 HKCU "Software\\Classes\\${DSH_DISTRIBUTION_PROTOCOL}\\shell\\open\\command" ""')
+  expect(hook).toContain('StrCpy $R1 \'$\\"$INSTDIR\\${APP_EXECUTABLE_FILENAME}$\\"\'')
+  expect(hook).toContain('StrCpy $R0 $R0 $R2')
+  expect(hook).toContain('${If} $R0 == $R1')
+  expect(hook).toContain('DeleteRegKey HKCU "Software\\Classes\\${DSH_DISTRIBUTION_PROTOCOL}"')
+  expect(hook).not.toContain('Software\\Classes\\dsh')
+  expect(hook).toContain('Call un.CleanData')
 })
 
 it('keeps data cleanup out of the upstream template while retaining application removal and registration cleanup', () => {

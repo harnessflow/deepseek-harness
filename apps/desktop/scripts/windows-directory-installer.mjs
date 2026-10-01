@@ -13,12 +13,12 @@ function replaceOnce(source, before, after) {
   return source.replace(before, after)
 }
 
-/** Build-only home ownership passed to the uninstaller from embedded product metadata. */
+/** Build-only home and protocol ownership passed to the uninstaller from embedded product metadata. */
 export function desktopInstallerHomeDefines(metadata) {
   const product = parseDesktopProduct(metadata)
   if (product === undefined) return ''
   const variable = `${product.protocol.toUpperCase().replaceAll('-', '_')}_HOME`
-  return `!define DSH_DISTRIBUTION_HOME_ENV "${variable}"\n!define DSH_DISTRIBUTION_HOME_DIRECTORY "${product.homeDirectory}"\n`
+  return `!define DSH_DISTRIBUTION_HOME_ENV "${variable}"\n!define DSH_DISTRIBUTION_HOME_DIRECTORY "${product.homeDirectory}"\n!define DSH_DISTRIBUTION_PROTOCOL "${product.protocol}"\n`
 }
 
 /**

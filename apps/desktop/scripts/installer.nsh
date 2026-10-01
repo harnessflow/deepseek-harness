@@ -88,6 +88,24 @@ ManifestDPIAware true
 !macroend
 
 !macro customUnInstall
+  !ifdef DSH_DISTRIBUTION_PROTOCOL
+    ${IfNot} ${isUpdated}
+      Push $R0
+      Push $R1
+      Push $R2
+      ; Electron registers the protocol at runtime; keep registrations owned by another installation.
+      ReadRegStr $R0 HKCU "Software\Classes\${DSH_DISTRIBUTION_PROTOCOL}\shell\open\command" ""
+      StrCpy $R1 '$\"$INSTDIR\${APP_EXECUTABLE_FILENAME}$\"'
+      StrLen $R2 $R1
+      StrCpy $R0 $R0 $R2
+      ${If} $R0 == $R1
+        DeleteRegKey HKCU "Software\Classes\${DSH_DISTRIBUTION_PROTOCOL}"
+      ${EndIf}
+      Pop $R2
+      Pop $R1
+      Pop $R0
+    ${EndIf}
+  !endif
   Call un.CleanData
 !macroend
 
