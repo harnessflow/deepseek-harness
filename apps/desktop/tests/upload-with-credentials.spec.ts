@@ -41,6 +41,7 @@ async function check(mode: 'valid' | 'plaintext' | 'blank' | 'missing' | 'upload
   const root = await mkdtemp(join(tmpdir(), 'desktop-credentials-'))
   roots.push(root)
   const credentialPath = join(root, 'credential.clixml')
+  const progressPath = join(root, 'fixture-progress.log')
   let entry = launcher
   let uploadArguments = ''
   if (mode === 'upload' || mode === 'upload-failure') {
@@ -55,13 +56,17 @@ async function check(mode: 'valid' | 'plaintext' | 'blank' | 'missing' | 'upload
   `
   const script = `
     $ErrorActionPreference = 'Stop'
+    [IO.File]::WriteAllText(${quote(progressPath)}, 'powershell-ready')
     ${setup}
+    [IO.File]::AppendAllText(${quote(progressPath)}, '|credential-fixture-ready')
     $env:DOWNLOAD_PROD_COS_SECRET_ID = 'parent-sentinel'
     $env:DOWNLOAD_TEST_COS_SECRET_KEY = 'unrelated-test-key'
     $env:DSH_DESKTOP_WINDOWS_TOKEN_PIN = 'unrelated-signing-pin'
     $env:NODE_OPTIONS = '--require=missing-preload-must-not-run'
     $global:LASTEXITCODE = 0
+    [IO.File]::AppendAllText(${quote(progressPath)}, '|launcher-started')
     & ${quote(entry)} -CredentialFile ${quote(credentialPath)} -Environment ${quote(deployment)}${uploadArguments}
+    [IO.File]::AppendAllText(${quote(progressPath)}, '|launcher-returned')
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
     if ($env:DOWNLOAD_PROD_COS_SECRET_ID -ne 'parent-sentinel') { throw 'Parent environment changed' }
     Write-Output 'parent environment unchanged'
@@ -75,12 +80,16 @@ async function check(mode: 'valid' | 'plaintext' | 'blank' | 'missing' | 'upload
   try {
     const result = await execute('pwsh', [
       '-NoProfile', '-NonInteractive', '-EncodedCommand', Buffer.from(script, 'utf16le').toString('base64'),
-    ], { env, timeout: 30_000 })
+    // The Windows lane grants 90 seconds; bound this local-process wait below that outer budget.
+    ], { env, timeout: 80_000 })
     return { code: 0, output: result.stdout + result.stderr }
   }
   catch (error) {
     const result = error as Error & { code: number | string; stdout: string; stderr: string; killed?: boolean }
-    expect(result.killed).not.toBe(true)
+    let progress = 'powershell-not-ready'
+    try { progress = await readFile(progressPath, 'utf8') }
+    catch (readError) { if ((readError as NodeJS.ErrnoException).code !== 'ENOENT') throw readError }
+    expect(result.killed, `Owned credential fixture timed out: ${progress}`).not.toBe(true)
     expect(typeof result.code).toBe('number')
     return { code: result.code, output: result.stdout + result.stderr }
   }
