@@ -38,6 +38,8 @@ The shell resolves private state before opening Electron storage or starting Des
 
 The parent process retains inherited official-root variables for restart checks. Only Desktop Host receives private `DSH_HOME` and `DSH_AGENTS_HOME` values. Native credential lookup order, approval, sandbox behavior, and persistence formats are unchanged. Profile recovery retains mandatory distribution bundles, and missing packaged bundles produce a reinstall error instead of a silently reduced application.
 
+The fixed offline dependency installation at `dsh-runtimes/dsh-primary-runtime` and its `.previous` recovery directory are checked independently of their parent. Redirecting either directory cannot reuse another distribution's payload or promote its recovery link. The native dependency installation and rollback mechanism remains unchanged; these are startup ownership checks, not protection against same-user filesystem races.
+
 ## Packaging boundaries
 <a id="packaging-boundaries"></a>
 

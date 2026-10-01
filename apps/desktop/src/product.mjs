@@ -107,7 +107,7 @@ export function desktopProductPaths(product, userHome, environment, packaged) {
   for (const path of Object.values(paths)) {
     if (canonical(path) !== path) throw new Error('desktop product: redirected state leaves its owned path')
   }
-  for (const directory of ['profiles', 'profiles/desktop', 'sessions', 'storage', 'storages', 'dsh-runtimes', 'workspaces', 'workspaces/deepseek-harness/default-workspace']) {
+  for (const directory of ['profiles', 'profiles/desktop', 'sessions', 'storage', 'storages', 'dsh-runtimes', 'dsh-runtimes/dsh-primary-runtime', 'dsh-runtimes/dsh-primary-runtime.previous', 'workspaces', 'workspaces/deepseek-harness/default-workspace']) {
     const path = join(home, directory)
     if (canonical(path) !== path) throw new Error('desktop product: redirected state leaves its owned path')
   }

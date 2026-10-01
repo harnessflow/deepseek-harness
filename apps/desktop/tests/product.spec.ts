@@ -84,7 +84,7 @@ describe('standalone desktop distribution', () => {
     expect(() => desktopProductPaths(product, other, {}, true)).toThrow('dangling')
   })
 
-  it.each(['sessions', 'storage', 'storages', 'dsh-runtimes', 'workspaces', 'workspaces/deepseek-harness/default-workspace', 'profiles/desktop'])('refuses redirected %s in installed and development homes', (directory) => {
+  it.each(['sessions', 'storage', 'storages', 'dsh-runtimes', 'dsh-runtimes/dsh-primary-runtime', 'dsh-runtimes/dsh-primary-runtime.previous', 'workspaces', 'workspaces/deepseek-harness/default-workspace', 'profiles/desktop'])('refuses redirected %s in installed and development homes', (directory) => {
     for (const packaged of [true, false]) {
       const home = temporaryHome()
       const target = join(home, '.dsh')
