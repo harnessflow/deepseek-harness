@@ -189,6 +189,8 @@ pnpm --dir apps/desktop run check:package
 
 `prepare:desktop` is not a prerequisite:
 
+Explicit `--unsigned` builds on macOS require no Developer ID or notarization credentials. They retain ad-hoc application signing for local execution, skip Apple notarization, and write `-unsigned` DMG/ZIP files under `unsigned-artifacts` without a release completion record or update feed. These are unidentified-developer test artifacts; users may need to approve opening in macOS Privacy & Security. Omitting `--unsigned` retains every release signing and notarization check.
+
 ```sh
 pnpm run package:desktop
 ```

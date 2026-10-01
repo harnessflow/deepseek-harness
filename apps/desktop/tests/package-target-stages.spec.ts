@@ -127,6 +127,23 @@ it('checks the assembled macOS runtime before notarizing and recording the relea
   expect(writeFileSync).toHaveBeenCalledOnce()
 })
 
+it('checks unsigned macOS runtime before making test artifacts without notarization or a release record', async () => {
+  const { run, stages } = supervisor()
+  await packageTarget(parseDesktopPackageInvocation(['mac-arm64', '--unsigned'], 'darwin', 'arm64'), environment, run)
+  const smoke = stages.indexOf('exec tsx scripts/smoke-packaged-runtime.ts --unsigned')
+  expect(smoke).toBeGreaterThan(-1)
+  const artifacts = run.run.mock.calls.filter(call => call[2].includes('--prepackaged'))
+  expect(artifacts.map(call => call[2].find(argument => argument === 'zip' || argument === 'dmg'))).toEqual(['zip', 'dmg'])
+  for (const artifact of artifacts) {
+    expect(run.run.mock.invocationCallOrder[run.run.mock.calls.indexOf(artifact)])
+      .toBeGreaterThan(run.run.mock.invocationCallOrder[smoke]!)
+  }
+  for (const call of run.run.mock.calls) expect(call[3].env.DSH_DESKTOP_UNSIGNED).toBe('1')
+  expect(withMacOSNotarizationProxy).not.toHaveBeenCalled()
+  expect(packageMacOSArtifacts).not.toHaveBeenCalled()
+  expect(writeFileSync).not.toHaveBeenCalled()
+})
+
 it.each([false, true])('refuses macOS notarization and release records after an assembled-runtime failure (directory=%s)', async (directory) => {
   const { run } = supervisor('exec tsx scripts/smoke-packaged-runtime.ts')
   await expect(packageTarget(parseDesktopPackageInvocation(['mac-arm64', ...(directory ? ['--dir'] : [])], 'darwin', 'arm64'), environment, run))

@@ -77,6 +77,25 @@ describe('installer preparation preserves application dependencies', () => {
     expect(config.artifactName).toBe('deepseek-harness-${version}-${os}-${arch}-unsigned.${ext}')
   })
 
+  it('keeps macOS test artifacts ad-hoc signed without Apple credentials or release hooks', async () => {
+    const { createElectronBuilderConfig } = await import('../scripts/electron-builder-config.mjs')
+    const environment = {
+      DSH_DESKTOP_APP_ID: 'com.example.installer',
+      DSH_DESKTOP_MANDATORY_UPDATE_TEST_ORIGIN: 'https://policy.example.com',
+      DSH_DESKTOP_MANDATORY_UPDATE_CONFIG: JSON.stringify({ allowedAuthOrigins: ['https://login.example.com'] }),
+      DSH_DESKTOP_TARGET_PLATFORM: 'darwin', DSH_DESKTOP_TARGET_ARCH: 'arm64', DSH_DESKTOP_UNSIGNED: '1',
+    }
+    const config = createElectronBuilderConfig(environment, 'darwin', 'arm64')
+    expect(config.mac).toMatchObject({ identity: '-', forceCodeSigning: false, hardenedRuntime: false, notarize: false })
+    expect(config.dmg.sign).toBe(false)
+    expect(config.artifactName).toContain('-unsigned.')
+    expect(config.directories.output).toContain('unsigned-artifacts')
+    expect(config.publish).toBeNull()
+    await config.artifactBuildCompleted({ file: 'test-unsigned.dmg' })
+    expect(() => createElectronBuilderConfig({ ...environment, DSH_DESKTOP_UNSIGNED: '0' }, 'darwin', 'arm64'))
+      .toThrow(/SIGNING_IDENTITY/u)
+  })
+
   it('packages every preload entry point the shell loads', async () => {
     const { readdirSync, readFileSync } = await import('node:fs')
     const sourceDirectory = new URL('../src/', import.meta.url)

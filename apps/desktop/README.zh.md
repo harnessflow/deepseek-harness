@@ -191,6 +191,8 @@ pnpm --dir apps/desktop run check:package
 
 无需提前执行 `prepare:desktop`：
 
+macOS 显式 `--unsigned` 构建不要求 Developer ID 或公证凭据。它保留用于本机执行的 ad-hoc 应用签名，跳过 Apple 公证，在 `unsigned-artifacts` 下生成带 `-unsigned` 后缀的 DMG/ZIP，不写正式发行完成记录或更新 feed。这些是身份未经验证的开发者测试产物；用户可能需要在 macOS“隐私与安全性”中确认打开。不传 `--unsigned` 时保留全部正式签名和公证检查。
+
 ```sh
 pnpm run package:desktop
 ```
