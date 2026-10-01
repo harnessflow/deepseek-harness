@@ -78,6 +78,21 @@ function repositoryFixture(version = '1.2.3-rc.4'): string {
 }
 
 describe('client build environment', () => {
+  it('builds and verifies an explicit standalone desktop profile without accepting it as official', () => {
+    const product = { name: 'Example Audit', version: '0.1.0', appId: 'org.example.audit',
+      packageName: '@example/audit', artifactPrefix: 'audit', protocol: 'audit', homeDirectory: '.audit',
+      agentsDirectory: 'agents', bundlePackage: '@example/audit-bundle', updateMode: 'manual' }
+    const environment = { DSH_DESKTOP_PRODUCT: JSON.stringify(product),
+      DSH_CLIENT_COMMIT_HASH: COMMIT_HASH.slice(0, 7), DSH_CLIENT_VERSION: '1.2.3',
+      DSH_CLIENT_TITLE: 'DeepSeek Harness', DSH_CLIENT_EXTRA: 'not-public-in-product' }
+    const expected = { DSH_CLIENT_BUILD_PROFILE: 'desktop-product', DSH_CLIENT_TITLE: product.name,
+      DSH_CLIENT_COMMIT_HASH: COMMIT_HASH.slice(0, 7), DSH_CLIENT_VERSION: '1.2.3' }
+    expect(resolveClientBuildEnvironment(environment, 'desktop-product')).toEqual(expected)
+    expect(resolveClientBuildEnvironment(environment, 'official').DSH_CLIENT_TITLE).toBe('DeepSeek Harness')
+    expect(() => resolveClientBuildEnvironment({}, 'desktop-product')).toThrow(/desktop product|DSH_DESKTOP_PRODUCT/u)
+    expect(() => resolveClientBuildEnvironment({ ...environment, DSH_DESKTOP_PRODUCT: '{}' }, 'desktop-product')).toThrow(/desktop product/u)
+  })
+
   it('requires an exact public environment for a named artifact profile', () => {
     const expected = {
       DSH_CLIENT_BUILD_PROFILE: 'official',

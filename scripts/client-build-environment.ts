@@ -9,6 +9,7 @@ import {
   writeFileSync,
 } from 'node:fs'
 import { dirname, resolve } from 'node:path'
+import { desktopProductEnvironment } from '../apps/desktop/src/product.mjs'
 
 /** Prefix reserved for build-time values that may be embedded in browser artifacts. */
 const CLIENT_BUILD_ENV_PREFIX = 'DSH_CLIENT_'
@@ -189,22 +190,27 @@ export function resolveClientBuildEnvironment(
   profile: string | undefined = environment[CLIENT_BUILD_PROFILE_SELECTOR],
 ): ClientBuildEnvironment {
   if (profile === undefined) return clientBuildEnvironment(environment)
-  if (profile === 'official') {
+  if (profile === 'official' || profile === 'desktop-product') {
+    const product = profile === 'desktop-product' ? desktopProductEnvironment(environment) : undefined
+    if (profile === 'desktop-product' && product === undefined) {
+      throw new Error('DSH_DESKTOP_PRODUCT is required for the desktop-product client build profile')
+    }
     const commitHash = environment[CLIENT_COMMIT_HASH_VARIABLE]
     const version = environment[CLIENT_VERSION_VARIABLE]
     if (commitHash === undefined) {
-      throw new Error(`${CLIENT_COMMIT_HASH_VARIABLE} is required for the official client build profile`)
+      throw new Error(`${CLIENT_COMMIT_HASH_VARIABLE} is required for the ${profile} client build profile`)
     }
     if (version === undefined) {
-      throw new Error(`${CLIENT_VERSION_VARIABLE} is required for the official client build profile`)
+      throw new Error(`${CLIENT_VERSION_VARIABLE} is required for the ${profile} client build profile`)
     }
     return {
       DSH_CLIENT_COMMIT_HASH: commitHash,
       DSH_CLIENT_VERSION: version,
       ...OFFICIAL_CLIENT_BUILD_ENVIRONMENT,
+      ...(product === undefined ? {} : { DSH_CLIENT_BUILD_PROFILE: 'desktop-product', DSH_CLIENT_TITLE: product.name }),
     }
   }
-  throw new Error(`unknown client build profile ${JSON.stringify(profile)}; expected "official"`)
+  throw new Error(`unknown client build profile ${JSON.stringify(profile)}; expected "official" or "desktop-product"`)
 }
 
 /**

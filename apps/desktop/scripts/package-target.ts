@@ -452,8 +452,10 @@ export async function packageTarget(
         { cwd: APP_ROOT, env: electronBuilderEnv, timeoutMs: 60_000 })
     })
   }
-  await execute(['run', 'build:official'], buildEnv, REPOSITORY_ROOT)
-  await execute(['run', 'release:pack', '--family', 'dsh', '--out', buildPaths.packedDsh, ...packArguments], buildEnv, REPOSITORY_ROOT)
+  const standalone = desktopProductEnvironment(buildEnv) !== undefined
+  await execute(standalone ? ['run', 'build', '--profile', 'desktop-product'] : ['run', 'build:official'], buildEnv, REPOSITORY_ROOT)
+  await execute(['run', 'release:pack', '--family', 'dsh', '--out', buildPaths.packedDsh,
+    ...(standalone ? ['--client-profile', 'desktop-product'] : []), ...packArguments], buildEnv, REPOSITORY_ROOT)
   await execute([
     '--dir',
     'apps/desktop-host',

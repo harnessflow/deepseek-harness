@@ -68,6 +68,20 @@ it('requires one signing preflight before building, then records only the comple
   expect(record.publicUrl).toBe('https://updates.example.com/dsh-desk/0123456789abcdef0123456789abcdef/feeds/win-x64/')
 })
 
+it('selects the standalone client profile for both native building and verified package packing', async () => {
+  const product = { name: 'Example Audit', version: '0.1.0', appId: 'org.example.audit',
+    packageName: '@example/audit', artifactPrefix: 'audit', protocol: 'audit', homeDirectory: '.audit',
+    agentsDirectory: 'agents', bundlePackage: '@example/audit-bundle', updateMode: 'manual' }
+  const { run, stages } = supervisor()
+  await packageTarget(parseDesktopPackageInvocation(['win-x64', '--prepare-only'], 'win32', 'x64'),
+    { ...environment, DSH_DESKTOP_PRODUCT: JSON.stringify(product) }, run)
+  expect(stages[0]).toBe('run build --profile desktop-product')
+  const packs = run.run.mock.calls.filter(call => call[0].startsWith('run release:pack'))
+  expect(packs[0]![2]).toContain('--client-profile')
+  expect(packs[0]![2]).toContain('desktop-product')
+  expect(packs[1]![2]).not.toContain('--client-profile')
+})
+
 it('initializes shared storage only after acquiring the preflight stage lock', async () => {
   const { run } = supervisor()
   vi.mocked(withWindowsSigningStage).mockImplementationOnce(async (_options, operation) => {

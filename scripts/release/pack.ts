@@ -14,9 +14,32 @@ import { pnpmInvocation } from '../pnpm-invocation.ts'
 import { releaseFamily, tarballName, type ReleaseFamily, type ReleaseMember } from './families.ts'
 import { isEntry, runConcurrent } from './process.ts'
 import { PUBLISH_ORDER_FILE, tarballFiles } from './tarball.ts'
+import { readClientBuildRecord, repositoryCommitHash, repositoryVersion, resolveClientBuildEnvironment } from '../client-build-environment.ts'
 
 /** Where pack output lands when `--out` is omitted. */
 const DEFAULT_OUTPUT = 'dist/npm'
+
+/**
+ * Require matching artifact bytes and explicit product identity for desktop-only packing.
+ * Omission retains the family's official publication requirements.
+ * @param family - Selected package family.
+ * @param root - Repository supplying source metadata and the client build record.
+ * @param profile - Explicit standalone profile, or undefined for normal publication packing.
+ * @param environment - Standalone identity; unrelated public build variables are excluded.
+ */
+export function verifyPackClientBuildArtifacts(family: ReleaseFamily, root: string, profile: string | undefined,
+  environment: NodeJS.ProcessEnv = process.env): void {
+  if (profile === undefined) {
+    family.verifyBuildArtifacts(root)
+    return
+  }
+  if (profile !== 'desktop-product') throw new Error('release pack: unsupported client profile')
+  if (family.id !== 'dsh') throw new Error('release pack: desktop-product client profile requires the dsh family')
+  const expected = resolveClientBuildEnvironment({ ...environment,
+    DSH_CLIENT_COMMIT_HASH: repositoryCommitHash(root, environment), DSH_CLIENT_VERSION: repositoryVersion(root),
+  }, profile)
+  readClientBuildRecord(root, expected)
+}
 
 /**
  * Pack one member and check what its tarball carries.
@@ -52,7 +75,8 @@ function parseConcurrency(raw: string | undefined): number {
 /** Pack the family named by `--family` into `--out`. */
 async function main(): Promise<void> {
   const { values } = parseArgs({
-    options: { family: { type: 'string' }, out: { type: 'string' }, concurrency: { type: 'string' } },
+    options: { family: { type: 'string' }, out: { type: 'string' }, concurrency: { type: 'string' },
+      'client-profile': { type: 'string' } },
     allowPositionals: false,
   })
   if (values.family === undefined) throw new Error('usage: pack.ts --family <dsh|vendor> [--out dist/npm] [--concurrency 1]')
@@ -62,7 +86,7 @@ async function main(): Promise<void> {
   const root = process.cwd()
   const destination = resolve(root, values.out ?? DEFAULT_OUTPUT)
   const members = family.publishOrder(family.members(root)).order
-  family.verifyBuildArtifacts(root)
+  verifyPackClientBuildArtifacts(family, root, values['client-profile'])
   family.verifyVersions(members)
 
   rmSync(destination, { recursive: true, force: true })
