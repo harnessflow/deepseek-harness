@@ -511,6 +511,59 @@ export interface Config {
 ```
 <!-- END GENERATED config-catalog:@deepseek-ai/dsh-client-shortcuts -->
 
+<!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-client-ui-conversation -->
+<a id="deepseek-aidsh-client-ui-conversation"></a>
+
+## `@deepseek-ai/dsh-client-ui-conversation`
+
+- `refs`: [`LocalizedText`](../packages/util/package-manifest/src/index.ts) · `Volatile` (`@deepseek-ai/cordis`)
+- `source`: [`packages/client/ui-conversation/src/index.ts:18`](../packages/client/ui-conversation/src/index.ts)
+
+```ts config-catalog
+/** Runtime preferences projected to the browser. */
+export interface Config {
+  /** Optional localized hero presentation; absent retains native copy and badge. */
+  hero?: HeroConfig
+  /** Enter key behavior while a turn is running. */
+  busyEnter: Volatile<BusyEnterBehavior>
+}
+
+/** Hero copy and badge preferences; omission preserves native presentation. */
+export interface HeroConfig {
+  /** Localized empty-state headline; absent uses the native locale dictionary. */
+  headline?: LocalizedText
+  /** Localized directory guidance before a Session is selected. */
+  workspacePlaceholder?: LocalizedText
+  /** Show the existing preview label; absent retains the native visible badge. */
+  showPreviewBadge?: boolean
+}
+
+/** Configurable meaning of plain Enter while the addressed agent is busy. */
+export type BusyEnterBehavior = typeof BUSY_ENTER_BEHAVIORS[number]
+```
+<!-- END GENERATED config-catalog:@deepseek-ai/dsh-client-ui-conversation -->
+
+<!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-client-ui-model-selection -->
+<a id="deepseek-aidsh-client-ui-model-selection"></a>
+
+## `@deepseek-ai/dsh-client-ui-model-selection`
+
+- `source`: [`packages/client/ui-model-selection/src/presentation.ts:22`](../packages/client/ui-model-selection/src/presentation.ts)
+
+```ts config-catalog
+/** Selector configuration is exclusively presentation policy. */
+export type Config = ProviderPresentation
+
+/** Optional display ordering and exact provider identifiers to omit from selectable directories. */
+export interface ProviderPresentation {
+  /** Listed identifiers lead other providers in this order; absent preserves each surface's native order. */
+  providerOrder?: string[]
+  /** Exact identifiers omitted only from selectable presentation. */
+  hiddenProviders?: string[]
+}
+```
+<!-- END GENERATED config-catalog:@deepseek-ai/dsh-client-ui-model-selection -->
+
 <!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-client-ui-plugin-manager -->
 <a id="deepseek-aidsh-client-ui-plugin-manager"></a>
 
@@ -591,6 +644,10 @@ export type OnboardingProcess = 'compact' | 'standard' | 'detailed'
 ```ts config-catalog
 /** Onboarding options after schema defaults are applied. */
 export interface Config {
+  /** Identifiers leading the display directory; absent retains native order. */
+  providerOrder?: string[]
+  /** Exact provider identifiers omitted only from directory presentation. */
+  hiddenProviders?: string[]
   /** Offer the browser API-key step when no native shell owns credential onboarding. */
   credentialOnboarding: boolean
 }
@@ -652,6 +709,22 @@ export interface Config {
 export type ThemePreference = typeof THEME_PREFERENCES[number]
 ```
 <!-- END GENERATED config-catalog:@deepseek-ai/dsh-client-ui-theme -->
+
+<!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-client-ui-workspace -->
+<a id="deepseek-aidsh-client-ui-workspace"></a>
+
+## `@deepseek-ai/dsh-client-ui-workspace`
+
+- `source`: [`packages/client/ui-workspace/src/config.ts:5`](../packages/client/ui-workspace/src/config.ts)
+
+```ts config-catalog
+/** Workspace startup options after Loader defaults. */
+export interface Config {
+  /** Create the native default workspace only when both workspaces and sessions are empty. */
+  initializeDefaultOnEmpty: boolean
+}
+```
+<!-- END GENERATED config-catalog:@deepseek-ai/dsh-client-ui-workspace -->
 
 <!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-compaction-basic -->
 <a id="deepseek-aidsh-compaction-basic"></a>
@@ -4295,7 +4368,6 @@ export interface Config {
 | `@deepseek-ai/dsh-client-ui-brand-official` | — | [`packages/client/ui-brand-official/src/index.ts`](../packages/client/ui-brand-official/src/index.ts) |
 | `@deepseek-ai/dsh-client-ui-chat` | — | [`packages/client/ui-chat/src/index.ts`](../packages/client/ui-chat/src/index.ts) |
 | `@deepseek-ai/dsh-client-ui-commands` | — | [`packages/client/ui-commands/src/index.ts`](../packages/client/ui-commands/src/index.ts) |
-| `@deepseek-ai/dsh-client-ui-conversation` | — | [`packages/client/ui-conversation/src/index.ts`](../packages/client/ui-conversation/src/index.ts) |
 | `@deepseek-ai/dsh-client-ui-cordis` | — | [`packages/extensions/ui-cordis/src/index.ts`](../packages/extensions/ui-cordis/src/index.ts) |
 | `@deepseek-ai/dsh-client-ui-deliverables` | `systemPrompt` · `connection` · `sessionQuery` · `sessionController` · `workspaceFiles` · `fs` · `sandboxPolicy` · `workspaceChanges` | [`packages/client/ui-deliverables/src/index.ts`](../packages/client/ui-deliverables/src/index.ts) |
 | `@deepseek-ai/dsh-client-ui-directory-picker-browse` | — | [`packages/client/ui-directory-picker-browse/src/index.ts`](../packages/client/ui-directory-picker-browse/src/index.ts) |
@@ -4305,7 +4377,6 @@ export interface Config {
 | `@deepseek-ai/dsh-client-ui-jobs` | — | [`packages/client/ui-jobs/src/index.ts`](../packages/client/ui-jobs/src/index.ts) |
 | `@deepseek-ai/dsh-client-ui-layout` | — | [`packages/client/ui-layout/src/index.ts`](../packages/client/ui-layout/src/index.ts) |
 | `@deepseek-ai/dsh-client-ui-message-feedback` | — | [`packages/client/ui-message-feedback/src/index.ts`](../packages/client/ui-message-feedback/src/index.ts) |
-| `@deepseek-ai/dsh-client-ui-model-selection` | — | [`packages/client/ui-model-selection/src/index.ts`](../packages/client/ui-model-selection/src/index.ts) |
 | `@deepseek-ai/dsh-client-ui-open-in-app` | — | [`packages/client/ui-open-in-app/src/index.ts`](../packages/client/ui-open-in-app/src/index.ts) |
 | `@deepseek-ai/dsh-client-ui-permission-presets` | — | [`packages/client/ui-permission-presets/src/index.ts`](../packages/client/ui-permission-presets/src/index.ts) |
 | `@deepseek-ai/dsh-client-ui-plan` | — | [`packages/client/ui-plan/src/index.ts`](../packages/client/ui-plan/src/index.ts) |
@@ -4333,7 +4404,6 @@ export interface Config {
 | `@deepseek-ai/dsh-client-ui-trajectory` | — | [`packages/client/ui-trajectory/src/index.ts`](../packages/client/ui-trajectory/src/index.ts) |
 | `@deepseek-ai/dsh-client-ui-user-questions` | — | [`packages/client/ui-user-questions/src/index.ts`](../packages/client/ui-user-questions/src/index.ts) |
 | `@deepseek-ai/dsh-client-ui-workflow-run` | — | [`packages/client/ui-workflow-run/src/index.ts`](../packages/client/ui-workflow-run/src/index.ts) |
-| `@deepseek-ai/dsh-client-ui-workspace` | — | [`packages/client/ui-workspace/src/index.ts`](../packages/client/ui-workspace/src/index.ts) |
 | `@deepseek-ai/dsh-command-compact` | `commands` · `compaction` | [`packages/compaction/command-compact/src/index.ts`](../packages/compaction/command-compact/src/index.ts) |
 | `@deepseek-ai/dsh-command-feedback` | `commands` | [`packages/feedback/command-feedback/src/index.ts`](../packages/feedback/command-feedback/src/index.ts) |
 | `@deepseek-ai/dsh-command-goal` | `commands` · `goals` | [`packages/goal/command-goal/src/index.ts`](../packages/goal/command-goal/src/index.ts) |

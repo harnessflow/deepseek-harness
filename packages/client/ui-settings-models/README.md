@@ -29,6 +29,8 @@ Saving credentials or a custom provider preserves the selected model. The user c
 
 DeepSeek Account appears first and DeepSeek second in the provider list; third-party providers retain their directory order.
 
+Optional Host configuration `providerOrder` and `hiddenProviders` reorder and filter exact provider ids in the displayed Models directory. With neither configured, native ordering remains. Configure the same policy on [model selection](../ui-model-selection/README.md#use-this-package) for matching choices. The full settings, credential and execution data remain intact, including custom providers; hiding a usable provider does not trigger first-run posture.
+
 Open the Models page from the Settings navigation to see every configured provider as a row. A whole-section provider whose key is not configured anywhere renders as its open setup card instead, but only in the first-run posture and only until the user closes that card. Each card kind owns its own open state, so closing one never discards a draft in another.
 
 A provider with a stored catalog error remains visible with its diagnostic and edit/delete actions. Add actions are offered only for registered settings namespaces, so an unavailable namespace cannot leave a button that opens no editor. A rejected save leaves the editor open and displays the Host diagnostic.

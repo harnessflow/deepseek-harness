@@ -3,6 +3,7 @@
 import type { Context } from '@deepseek-ai/cordis'
 import type { InboxState, InboxTarget } from '@deepseek-ai/dsh-agent/types'
 import { randomUUID } from '@deepseek-ai/dsh-util-crypto'
+import { createSubmissionRequestId } from '../submission-origin.ts'
 import type { AttachmentIdType, FileAttachmentRef, ImageAttachmentRef } from '@deepseek-ai/dsh-attachment'
 import type { SubagentAddress } from '@deepseek-ai/dsh-subagent/client'
 import type { MessageId } from '@deepseek-ai/dsh-llm/brand'
@@ -226,7 +227,7 @@ export class Session implements SessionFace {
    * @returns the minted identity for {@link prompt} plus the pre-prompt abandon path.
    */
   beginSubmission(input: BeginSubmissionInput): SubmissionHandle {
-    const requestId = randomUUID() as SessionRequestId
+    const requestId = createSubmissionRequestId(input.origin)
     const placement = this.running ? input.mode === 'steer' ? 'steering' : 'queued' : 'transcript'
     this.pendingSubmissions = [...this.pendingSubmissions, {
       requestId,

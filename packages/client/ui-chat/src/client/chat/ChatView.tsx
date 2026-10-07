@@ -76,9 +76,12 @@ const ChatNodeList = memo(function ChatNodeList({ entries, useChatGroup, pending
   })
   const pendingRows = pendingInputs.map(item => 'requestId' in item ? (
     <PendingSubmissionBubble key={item.requestId} submission={item}
+      {...seatProps.userTextPresentation === undefined ? {} : { userTextPresentation: seatProps.userTextPresentation }}
       renderMessageImages={seatProps.renderMessageImages} t={seatProps.t} />
   ) : (
     <PendingSteeringBubble key={item.id} content={item.content}
+      requestId={item.source.kind === 'user' && 'rpcId' in item.source ? item.source.rpcId : undefined}
+      {...seatProps.userTextPresentation === undefined ? {} : { userTextPresentation: seatProps.userTextPresentation }}
       renderMessageImages={seatProps.renderMessageImages} t={seatProps.t} />
   ))
   const tail = entries.at(-1)
@@ -100,7 +103,7 @@ const ChatNodeList = memo(function ChatNodeList({ entries, useChatGroup, pending
 export function ChatView({
   useSession, useChat, useChatNode, useChatNodeProcess, useChatGroup, useConversation, useSessions, useStore, actions, renderSlot,
   sessionId, openFile, openSkill, openExternalLink, loadOlder, loadThrough, loadImage, inspectCall, chatScroll, forkAt, fileMentions,
-  usePresentation, useProjection, t,
+  usePresentation, useProjection, t, userTextPresentation,
 }: ChatViewSlotProps) {
   const order = useChat(s => s.order)
   const groupedEntries = useConversation(snapshot => snapshot.views.grouped('chat')?.entries)
@@ -260,6 +263,7 @@ export function ChatView({
                 cwd={cwd}
                 openFile={requestOpenFile}
                 openSkill={openSkill}
+                {...userTextPresentation === undefined ? {} : { userTextPresentation }}
                 inspectCall={inspectCall}
                 forkAt={forkAt}
                 loadImage={loadImage}

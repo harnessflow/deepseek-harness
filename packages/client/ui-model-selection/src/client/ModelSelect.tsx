@@ -34,6 +34,7 @@ import {
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import type { ModelSelectInjected } from './slots.ts'
 import css from './ModelSelect.module.css'
+import { presentProviders } from '../presentation.ts'
 
 /** Which pane the dropdown shows: the two-row root or one drilled-in list. */
 type Pane = 'root' | 'model' | 'effort'
@@ -55,7 +56,7 @@ const MEASURE_STYLE: CSSProperties = { visibility: 'hidden', left: 0, top: 0 }
  * @returns the trigger and, while open, the two-level menu.
  */
 export function ModelSelect(
-  { locked, available, directory, load, select, t }:
+  { locked, available, directory, load, select, t, presentation = {} }:
   ModelSelectInjected & { locked: boolean } & PropsLocale<'model'>,
 ) {
   const state = useSyncExternalStore(
@@ -78,9 +79,8 @@ export function ModelSelect(
   const itemRefs = useRef<(HTMLButtonElement | null)[]>([])
   const id = useId()
 
-  const groups = useMemo(() => state.groups.toSorted((left, right) =>
-    (left.id === 'deepseek-account' ? 0 : left.id === 'deepseek-official' ? 1 : 2)
-      - (right.id === 'deepseek-account' ? 0 : right.id === 'deepseek-official' ? 1 : 2)), [state.groups])
+  const groups = useMemo(() => presentProviders(state.groups, group => group.id, presentation,
+    ['deepseek-account', 'deepseek-official']), [state.groups, presentation])
   const choices = useMemo(() => groups.flatMap(group =>
     group.models.map(model => ({
       group,
@@ -93,10 +93,10 @@ export function ModelSelect(
           : { reasoningEffort: model.reasoning.defaultEffort },
       } satisfies ModelSelection,
     }))), [groups])
-  const selectedIndex = state.current === null
-    ? -1
-    : choices.findIndex(c => c.selection.provider === state.current?.provider && c.selection.model === state.current.model)
-  const currentChoice = choices[selectedIndex]
+  const currentGroup = state.groups.find(group => group.id === state.current?.provider)
+  const currentModel = currentGroup?.models.find(model => model.id === state.current?.model)
+  const currentChoice = currentGroup !== undefined && currentModel !== undefined
+    ? { group: currentGroup, model: currentModel } : undefined
   const reasoning = currentChoice?.model.reasoning
   const effectiveEffort = state.current?.reasoningEffort ?? reasoning?.defaultEffort
   const effortLabel = reasoning === undefined

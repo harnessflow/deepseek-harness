@@ -90,6 +90,7 @@ export function apply(ctx: ClientContext): void {
   // one bound translate; copy freshness rides the locale revision.
   const t = ctx.locale.bind(NS) as ModelsSectionInjected['t']
   const injected = (): ModelsSectionInjected => ({
+    presentation: configured,
     controller,
     hooks: { snapshot: controller.store },
     operations,

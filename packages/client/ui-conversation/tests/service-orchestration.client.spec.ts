@@ -54,6 +54,29 @@ async function bench(maxConcurrentFileUploads = 2) {
 }
 
 describe('ConversationController', () => {
+  it('passes the full originated echo identity and original text, abandoning failed admission without touching the draft', async () => {
+    const b = await bench()
+    try {
+      b.shell.setDraft('keep draft')
+      const session = b.runtime.sessions.binding('s1')!.session
+      const abandon = vi.fn()
+      const requestId = 'dsh-origin:audit/start:550e8400-e29b-41d4-a716-446655440000' as never
+      const begin = vi.spyOn(session, 'beginSubmission').mockReturnValue({ requestId, abandon })
+      const controller = new AbortController()
+      await b.scoped.send('/audit original', { origin: 'audit/start', signal: controller.signal })
+      expect(begin).toHaveBeenCalledWith({ mode: 'queue', text: '/audit original', attachments: [], origin: 'audit/start' })
+      expect(b.prompt).toHaveBeenLastCalledWith([{ type: 'text', text: '/audit original' }], 'queue', controller.signal, requestId)
+      expect(abandon).not.toHaveBeenCalled()
+      b.prompt.mockRejectedValueOnce(new Error('admission failed'))
+      await expect(b.scoped.send('/audit original', { origin: 'audit/start' })).rejects.toThrow('admission failed')
+      expect(abandon).toHaveBeenCalledOnce()
+      controller.abort()
+      await expect(b.scoped.send('/audit original', { origin: 'audit/start', signal: controller.signal })).rejects.toThrow()
+      expect(begin).toHaveBeenCalledTimes(2)
+      expect(b.shell.state.getSnapshot().draft).toBe('keep draft')
+    } finally { await b.runtime.dispose() }
+  })
+
   it('does not revive a withdrawn generation when an old input submits before scoped cleanup', async () => {
     const b = await bench()
     try {

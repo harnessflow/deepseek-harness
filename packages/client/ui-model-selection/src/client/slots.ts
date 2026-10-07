@@ -8,9 +8,12 @@ import type { RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
 import type { ModelSelection } from '@deepseek-ai/dsh-api-remotes/client'
 import type { SnapshotStore } from '@deepseek-ai/dsh-client-store'
 import type { ModelDirectoryState } from './directory.ts'
+import type { ProviderPresentation } from '../presentation.ts'
 
 /** Injected business face of the composer model seat. */
 export interface ModelSelectInjected {
+  /** Optional display policy; full directory still resolves the current model and effort. */
+  presentation?: ProviderPresentation
   /** Whether this session supports Agent-bound model inspection and selection. */
   available: boolean
   /** The session's shared directory store (same instance the /model popup reads). */

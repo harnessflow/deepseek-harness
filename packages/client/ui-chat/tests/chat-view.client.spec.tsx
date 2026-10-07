@@ -3,7 +3,7 @@
 import type { ProcessGroupData } from '../src/client/contract/process-groups.ts'
 import type { InboxState } from '@deepseek-ai/dsh-agent/types'
 import type { GlobalStandardProps } from '@deepseek-ai/dsh-client-ui-slots'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { useEffect } from 'react'
 import type {
@@ -1582,6 +1582,44 @@ describe('ChatView', () => {
         'fixture:user:1', 'fixture:turn-process:1', 'fixture:assistant:2',
         'fixture:tool:a', 'call:a', 'fixture:tool:b', 'call:b',
       ])
+  })
+
+  it('uses plain display contributions across local echo and durable replay while copying the original', () => {
+    const text = '/audit original'
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    const clipboard = Object.getOwnPropertyDescriptor(navigator, 'clipboard')
+    onTestFinished(() => {
+      if (clipboard === undefined) Reflect.deleteProperty(navigator, 'clipboard')
+      else Object.defineProperty(navigator, 'clipboard', clipboard)
+    })
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } })
+    const definitions: readonly [] = []
+    const userTextPresentation = {
+      getSnapshot: () => definitions, subscribe: () => () => {},
+      present: (original: string, requestId?: string) => original === text && requestId === 'origin-id'
+        ? '<b>Audit</b> · project' : undefined,
+    }
+    const pending = { requestId: 'origin-id' as never, placement: 'transcript' as const, time: 1,
+      text, attachments: [{ type: 'file' as const,
+        value: { attachmentId: 'file-id' as never, name: 'notes.txt', bytes: 10 } }] }
+    const h = makeHarness({}, { pendingSubmissions: [pending] })
+    const view = render(<h.ChatView {...h.props} userTextPresentation={userTextPresentation} />)
+    expect(view.getByText('<b>Audit</b> · project')).toBeDefined()
+    expect(view.container.querySelector('b')).toBeNull()
+    expect(view.getByText('notes.txt')).toBeDefined()
+    fireEvent.click(view.getByRole('button', { name: '复制' }))
+    expect(writeText).toHaveBeenLastCalledWith(text)
+    const durable = { ...user(1, text), source: { kind: 'user', rpcId: 'origin-id' } }
+    act(() => { h.setSession({ pendingSubmissions: [] }); h.setChat({ nodes: [durable] }) })
+    expect(view.getAllByText('<b>Audit</b> · project')).toHaveLength(1)
+    fireEvent.click(view.getByRole('button', { name: '复制' }))
+    expect(writeText).toHaveBeenLastCalledWith(text)
+    view.unmount()
+    const replay = makeHarness({ nodes: [durable] })
+    const historical = render(<replay.ChatView {...replay.props} userTextPresentation={userTextPresentation} />)
+    expect(historical.getByText('<b>Audit</b> · project')).toBeDefined()
+    historical.rerender(<replay.ChatView {...replay.props} />)
+    expect(historical.getByText(text)).toBeDefined()
   })
 
   it('renders Host-pending steering at the flow tail and hands off to the durable node', withClock(2_000, () => {

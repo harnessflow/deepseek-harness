@@ -133,6 +133,7 @@ interface RetainedSession {
 }
 
 class FakeSessions implements ISessions {
+  submissionOrigin(): undefined { return undefined }
   readonly list: MutableSource<SessionListState>
   readonly create: ReturnType<typeof vi.fn<ISessions['create']>>
   readonly fork = vi.fn<ISessions['fork']>(async () => sid('forked'))
@@ -266,6 +267,7 @@ class FakeDirectoryPicker {
 }
 
 interface BenchOptions {
+  readonly initializeDefaultOnEmpty?: boolean
   readonly configureWorkspaces?: (workspaces: FakeWorkspaces) => void
   readonly workspaces?: WorkspaceSnapshot
   readonly sessions?: SessionListState
@@ -297,11 +299,26 @@ function bench(options: BenchOptions = {}) {
     sessions,
     view.actions,
     notify,
+    options.initializeDefaultOnEmpty,
   )
   return { ctx, directoryPicker, sessions, uiWorkspace, workspaces, layout, selectPanel, view, notify }
 }
 
 describe('UiWorkspaceService', () => {
+  it('leaves cold empty startup untouched when default initialization is disabled', async () => {
+    const b = bench({ initializeDefaultOnEmpty: false })
+    b.sessions.list.set(sessionState())
+    b.workspaces.list.set(workspaceState())
+    await setImmediate()
+    expect(b.workspaces.initializeDefault).not.toHaveBeenCalled()
+    expect(b.sessions.create).not.toHaveBeenCalled()
+    expect(b.selectPanel).not.toHaveBeenCalled()
+    expect(b.notify).not.toHaveBeenCalled()
+    const existing = workspace('existing')
+    b.workspaces.list.set(workspaceState([existing]))
+    await b.uiWorkspace.openWorkspace(existing.workspaceId)
+    expect(b.sessions.create).toHaveBeenCalledWith({ workspaceId: existing.workspaceId })
+  })
   it('prepares and selects the default Workspace after both startup baselines', async () => {
     const b = bench({ configureWorkspaces: (workspaces) => {
       workspaces.initializeDefault.mockImplementation(async () => {

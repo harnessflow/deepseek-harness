@@ -193,6 +193,7 @@ export function apply(ctx: Context): void {
         const chat = chatSource(binding)
         const conversation = ctx.uiConversation.binding(binding)
         return {
+          userTextPresentation: ctx.uiConversation.userText.face(() => ctx.sessions.list.getSnapshot().byId[sessionId]?.cwd),
           hooks: { presentation },
           keyedHooks: {
             chatNode: key => chat.getSnapshot().nodes.source(key),

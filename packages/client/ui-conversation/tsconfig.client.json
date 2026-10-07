@@ -9,6 +9,7 @@
     "src"
   ],
   "references": [
+    { "path": "../../util/package-manifest" },
     {
       "path": "../../../vendor/schemastery"
     },

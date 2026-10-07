@@ -1,5 +1,5 @@
 import type { Context } from '@deepseek-ai/cordis'
-import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import type { FileAttachmentRef, ImageAttachmentRef } from '@deepseek-ai/dsh-attachment'
 import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
@@ -13,6 +13,7 @@ import type { QueueAction } from '@deepseek-ai/dsh-api-session-controller/types'
 import type { MessageId } from '@deepseek-ai/dsh-llm/brand'
 import { NS } from '../locales.ts'
 import css from './QueueDock.module.css'
+import { EMPTY_USER_TEXT_PRESENTATION, type UserTextPresentationFace } from '../contract/user-text.ts'
 
 const EMPTY_QUEUE = [] as const
 const QUEUE_PREVIEW_CHARS = 200
@@ -33,6 +34,8 @@ function textOf(content: InboxState['next-turn'][number]['content']): string | n
 
 /** Queue operations injected by the session-scoped registration. */
 export interface QueueDockInjected {
+  /** Pure text display contributions; editing still reads original queue content. */
+  userTextPresentation?: UserTextPresentationFace
   updateQueue: (itemId: MessageId, action: QueueAction) => Promise<void>
   notify: (level: 'info' | 'error', text: string) => void
   /** Resolve one durable queued image into a session-scoped browser URL. */
@@ -153,7 +156,9 @@ export type QueueDockProps = PropsRuntime<'conversation.input.dock'> & QueueDock
  * collapsible count header; an empty queue renders nothing. Local queued submissions
  * show sending status and disabled actions until their Host queue rows arrive.
  */
-export function QueueDock({ useSession, useProjection, updateQueue, notify, loadImage, t }: QueueDockProps) {
+export function QueueDock({ useSession, useProjection, updateQueue, notify, loadImage, t,
+  userTextPresentation = EMPTY_USER_TEXT_PRESENTATION }: QueueDockProps) {
+  useSyncExternalStore(userTextPresentation.subscribe, userTextPresentation.getSnapshot)
   const inbox = useProjection('inbox') as unknown as InboxState | undefined
   const pendingSubmissions = useSession(s => s.pendingSubmissions)
   const queue = useMemo(() => {
@@ -242,6 +247,9 @@ export function QueueDock({ useSession, useProjection, updateQueue, notify, load
           {listVisible && queue.map((row) => {
             const attachments = queueAttachments(row.content)
             const text = textOf(row.content)
+            const original = row.content.filter(block => block.type === 'text').map(block => block.text).join('')
+            const requestId = row.source.kind === 'user' && 'rpcId' in row.source ? row.source.rpcId : undefined
+            const displayText = userTextPresentation.present(original, requestId)
             return (
               <li key={row.id} className={css.row}>
                 {/* Single-item strip has no count header, so the row itself carries the queue glyph. */}
@@ -278,7 +286,7 @@ export function QueueDock({ useSession, useProjection, updateQueue, notify, load
                             ))}
                         </span>
                       )}
-                      <span className={css.preview}>{projectUserText(previewOf(row.content), [])}</span>
+                      <span className={css.preview}>{displayText ?? projectUserText(previewOf(row.content), [])}</span>
                     </>
                   )}
                 {queueMutable && <div className={css.actions}>
@@ -392,7 +400,8 @@ export function QueueDock({ useSession, useProjection, updateQueue, notify, load
                       ))}
                   </span>
                 )}
-                <span className={css.preview}>{projectUserText(submission.text, [])}</span>
+                <span className={css.preview}>{userTextPresentation.present(submission.text, submission.requestId)
+                  ?? projectUserText(submission.text, [])}</span>
                 <span className={css.status} role="status">{t('queue.sending')}</span>
                 {queueMutable && <div className={css.actions}>
                   <button
@@ -448,6 +457,7 @@ export const queueDockEntry = {
         const conversation = actx.get('conversation')
         if (conversation === undefined) throw new Error('queue dock: conversation service unavailable')
         return {
+          userTextPresentation: ctx.uiConversation.userText.face(() => ctx.sessions.list.getSnapshot().byId[sessionId]?.cwd),
           updateQueue: (itemId, action) => conversation.updateQueue(itemId, action),
           notify: (level, text) => { conversation.input.for(actx).notify(level, text) },
           loadImage: attachment => ctx.uiConversation.imageUrl(sessionId, attachment),

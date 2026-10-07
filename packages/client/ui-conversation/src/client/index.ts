@@ -2,6 +2,8 @@
 export { apply, Config, inject } from './apply.ts'
 export type { Config as ConversationConfig } from './apply.ts'
 export { UiConversation } from './conversation/assembly.ts'
+export { EMPTY_USER_TEXT_PRESENTATION, UserTextPresentationRegistry } from './conversation/user-text.ts'
+export type { UserTextInput, UserTextPresentation, UserTextPresentationFace } from './conversation/user-text.ts'
 export type { ConversationBinding } from './conversation/assembly.ts'
 export type { ConversationGroupRegistry } from './conversation/group-registry.ts'
 export type {

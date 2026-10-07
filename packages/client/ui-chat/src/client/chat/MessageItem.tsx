@@ -1,7 +1,8 @@
-import { Fragment, memo, useEffect, useMemo, useState } from 'react'
+import { Fragment, memo, useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import type { ReactNode } from 'react'
 import type { PendingSubmission } from '@deepseek-ai/dsh-api-session-controller/client'
 import type { MessageImageSource } from '@deepseek-ai/dsh-client-ui-conversation/client'
+import type { UserTextPresentationFace } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import { fileExtension, FileTypeIcon, fileSizeText, JsonBlock, projectUserText, StateDot } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ChatNodeOwnerProps, ChatNodeViewProps, ChatViewSlotProps } from '../contract/slots.ts'
 import type { ModelRetryNode, TurnErrorNode, UserMessageNode } from '../contract/snapshot.ts'
@@ -10,7 +11,19 @@ import { ContextInjectionRow } from './ContextInjectionRow.tsx'
 import { MessageIconActions } from './MessageIconActions.tsx'
 import css from './MessageItem.module.css'
 
+const EMPTY_PRESENTERS: readonly import('@deepseek-ai/dsh-client-ui-conversation/client').UserTextPresentation[] = []
+const EMPTY_USER_TEXT_PRESENTATION: UserTextPresentationFace = {
+  getSnapshot: () => EMPTY_PRESENTERS,
+  subscribe: () => () => {},
+  present: () => undefined,
+}
+
 type UserImage = Extract<UserMessageNode['content'][number], { type: 'image' }>
+/** Old or unknown source payloads retain native text. */
+function userRequestId(source: unknown): string | undefined {
+  return typeof source === 'object' && source !== null && 'kind' in source && source.kind === 'user'
+    && 'rpcId' in source && typeof source.rpcId === 'string' ? source.rpcId : undefined
+}
 type UserFile = Extract<UserMessageNode['content'][number], { type: 'file' }>
 type PresentedAttachment =
   | { readonly type: 'image'; readonly image: MessageImageSource }
@@ -159,9 +172,11 @@ function TurnMaxTokensItem({ t }: {
 /** Right-aligned bubble shared by user and steering rows. */
 function UserStyleBubble({
   content, renderMessageImages, actions, pending = false, echo = false, referenceLabels = [], skillNames = [],
-  previewAttachments, references, t,
+  previewAttachments, references, t, requestId, userTextPresentation = EMPTY_USER_TEXT_PRESENTATION,
 }: {
   content: readonly unknown[]
+  requestId?: string | undefined
+  userTextPresentation?: UserTextPresentationFace
   renderMessageImages: ChatNodeOwnerProps['renderMessageImages']
   /** Optional IconActions (or similar) below the bubble; receives the joined text. */
   actions?: (text: string) => ReactNode
@@ -179,6 +194,8 @@ function UserStyleBubble({
   t: ChatViewSlotProps['t']
 }): ReactNode {
   const { text, attachments: contentAttachments, rest } = contentParts(content)
+  useSyncExternalStore(userTextPresentation.subscribe, userTextPresentation.getSnapshot)
+  const displayText = userTextPresentation.present(text, requestId)
   const attachments = previewAttachments ?? contentAttachments
   const compactImages = attachments.length > 1
   const truncated = (total: number): string => t('json.truncated', { total })
@@ -217,7 +234,7 @@ function UserStyleBubble({
           </div>
         )}
         {showBubble && <div className={css.bubble}>
-          {projectUserText(text, referenceLabels, skillNames, 'skill', references)}
+          {displayText ?? projectUserText(text, referenceLabels, skillNames, 'skill', references)}
           {rest.map((block, i) => <JsonBlock key={i} label={t('message.extraBlock')} payload={block} truncatedLabel={truncated} />)}
         </div>}
         {referenceLabels.length > 0 && (
@@ -237,14 +254,18 @@ function UserStyleBubble({
  * @param props - Pending message content and conversation translator.
  * @returns the pending steering bubble.
  */
-export function PendingSteeringBubble({ content, renderMessageImages, t }: {
+export function PendingSteeringBubble({ content, renderMessageImages, t, requestId, userTextPresentation }: {
   content: readonly unknown[]
+  requestId?: string | undefined
+  userTextPresentation?: UserTextPresentationFace
   renderMessageImages: ChatNodeOwnerProps['renderMessageImages']
   t: ChatViewSlotProps['t']
 }): ReactNode {
   return (
     <UserStyleBubble
       content={content}
+      requestId={requestId}
+      {...userTextPresentation === undefined ? {} : { userTextPresentation }}
       renderMessageImages={renderMessageImages}
       pending
       t={t}
@@ -268,8 +289,9 @@ export function PendingSteeringBubble({ content, renderMessageImages, t }: {
  * @param props - the session snapshot's pending submission and render seats.
  * @returns the echoed user bubble.
  */
-export function PendingSubmissionBubble({ submission, renderMessageImages, t }: {
+export function PendingSubmissionBubble({ submission, renderMessageImages, t, userTextPresentation }: {
   submission: PendingSubmission
+  userTextPresentation?: UserTextPresentationFace
   renderMessageImages: ChatNodeOwnerProps['renderMessageImages']
   t: ChatViewSlotProps['t']
 }): ReactNode {
@@ -297,6 +319,8 @@ export function PendingSubmissionBubble({ submission, renderMessageImages, t }: 
     <UserStyleBubble
       content={content}
       previewAttachments={previewAttachments}
+      requestId={submission.requestId}
+      {...userTextPresentation === undefined ? {} : { userTextPresentation }}
       renderMessageImages={renderMessageImages}
       pending={submission.placement === 'steering'}
       echo
@@ -316,12 +340,14 @@ export function PendingSubmissionBubble({ submission, renderMessageImages, t }: 
 
 /** User and admitted-steering keyed Chat renderer. */
 export const UserMessageNodeView = memo(function UserMessageNodeView({
-  node, renderMessageImages, openFile, openSkill, t,
+  node, renderMessageImages, openFile, openSkill, t, userTextPresentation,
 }: ChatNodeViewProps<'user' | 'steering'>) {
   const data = node.data
   return (
     <UserStyleBubble
       content={data.content}
+      requestId={userRequestId(data.source)}
+      {...userTextPresentation === undefined ? {} : { userTextPresentation }}
       references={{ openFile, openSkill }}
       renderMessageImages={renderMessageImages}
       {...data.referenceLabels === undefined ? {} : { referenceLabels: data.referenceLabels }}

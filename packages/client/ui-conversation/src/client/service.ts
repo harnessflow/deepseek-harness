@@ -48,9 +48,10 @@ export interface IConversation {
   /**
    * Send a prompt into the caller scope's session (queued turn).
    * @param text - prompt text, sent verbatim as one text block.
+   * @param options - optional display origin and cancellation; an origin creates a correlated local echo.
    * @returns completion; business failures reject (and land in promptError).
    */
-  send(text: string): Promise<void>
+  send(text: string, options?: { readonly origin?: string; readonly signal?: AbortSignal }): Promise<void>
   /**
    * Apply one edit, remove, or Steer operation to a pending queue occurrence.
    * @param itemId - agent-owned inbox occurrence identity.
@@ -205,11 +206,23 @@ export class ConversationController extends Service implements IConversation {
    * session snapshot's promptError (object-layer state); the rejection here
    * exists for caller choreography (the composer restores the draft on it).
    * @param text - prompt text, sent verbatim as one text block.
+   * @param options - optional display origin and cancellation; submitted text remains unchanged.
+   * @returns completion of native admission; failures reject and retire the local echo.
    */
-  async send(text: string): Promise<void> {
+  async send(text: string, options?: { readonly origin?: string; readonly signal?: AbortSignal }): Promise<void> {
     const session = this.scopedSession('send')
-    const result = await session.prompt([{ type: 'text', text }], 'queue')
-    if (!result.ok) throw new Error(`conversation.send failed: ${result.error.code}: ${result.error.message}`)
+    options?.signal?.throwIfAborted()
+    const submission = options?.origin === undefined ? undefined
+      : session.beginSubmission({ mode: 'queue', text, attachments: [], origin: options.origin })
+    try {
+      const content = [{ type: 'text' as const, text }]
+      const result = options === undefined ? await session.prompt(content, 'queue')
+        : await session.prompt(content, 'queue', options.signal, submission?.requestId)
+      if (!result.ok) throw new Error(`conversation.send failed: ${result.error.code}: ${result.error.message}`)
+    } catch (error) {
+      submission?.abandon()
+      throw error
+    }
   }
 
   /**

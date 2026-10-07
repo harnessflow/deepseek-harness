@@ -148,7 +148,7 @@ export function ConversationContent(props: ConversationContentProps) {
     ...(inert
       ? {
         disabled: true,
-        placeholder: t('placeholder.workspace'),
+        placeholder: props.heroPresentation?.workspacePlaceholder?.() ?? t('placeholder.workspace'),
         workspacePickerOpen: pickerOpen,
         onRequestWorkspace: () => { setPickerOpen(true) },
       }
@@ -162,7 +162,8 @@ export function ConversationContent(props: ConversationContentProps) {
 
   const composerBar = (
     <div className={clsx(css.composerStack, hero && css.composerHero)}>
-      {hero && <HeroShell t={t} renderSlot={renderSlot} />}
+      {hero && <HeroShell t={t} renderSlot={renderSlot}
+        {...props.heroPresentation === undefined ? {} : { presentation: props.heroPresentation }} />}
       {hero && heroWorkspaceRow}
       {zone !== undefined && renderSlot('conversation.input.dock', zone)}
       {inputBar}

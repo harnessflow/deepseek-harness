@@ -2,7 +2,7 @@
 import type { Context } from '@deepseek-ai/cordis'
 import type { AttachmentIdType } from '@deepseek-ai/dsh-attachment'
 import {
-  createScope, MutableSessionEventSource, scopeOf, SESSION_SEARCH_RESULT_LIMIT,
+  createScope, MutableSessionEventSource, scopeOf, submissionOrigin, SESSION_SEARCH_RESULT_LIMIT,
 } from '@deepseek-ai/dsh-api-session-controller/client'
 import type {
   AgentContext, ISessions, ProjectionsFace, SessionBinding, SessionFace, SessionListState,
@@ -300,6 +300,13 @@ class TestSessionReference implements SessionReference {
  * behavior/calls/stubs) are bench-only surface.
  */
 export class TestSessions implements ISessions {
+  /** Parse the same display metadata as the production Session service.
+   * @param requestId - complete native correlation identity.
+   * @returns native display namespace or undefined.
+   */
+  submissionOrigin(requestId: string | undefined): string | undefined {
+    return submissionOrigin(requestId)
+  }
   /** The useSessions catalog feed, independent of view ownership. */
   readonly list: SnapshotStore<SessionListState>
   private readonly records = new Map<SessionId, SessionRecord>()

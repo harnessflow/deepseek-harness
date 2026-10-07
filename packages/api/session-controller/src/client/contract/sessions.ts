@@ -47,6 +47,11 @@ export interface SessionRetainInfo {
 
 /** The sessions-service face injected as `ctx.sessions`. */
 export interface ISessions {
+  /** Parse a display origin without changing the complete correlation identity.
+   * @param requestId - native echo or persisted source.rpcId; grants no authority.
+   * @returns namespace, or undefined for legacy or malformed identities.
+   */
+  submissionOrigin(requestId: string | undefined): string | undefined
   /** Host catalog and local reference-source counts; navigation belongs to view owners. */
   readonly list: ObservableSnapshot<SessionListState>
   /**

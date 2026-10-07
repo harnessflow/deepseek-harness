@@ -1,9 +1,17 @@
-/**
- * Workspace picker plugin, node half. Pure UI plugin: the empty apply exists
- * so the plugin appears in the host cordis.yml / Loader (load and lifecycle
- * follow the host; the browser half ships via exports["./client"], discovered
- * through the package.json dsh.client declaration).
- */
+/** Workspace picker Host bootstrap; browser navigation owns the configured empty-state behavior. */
 
-/** Host plugin body — no host-side behavior for the workspace picker plugin. */
-export function apply(): void {}
+import type { Context } from '@deepseek-ai/cordis'
+import type {} from '@deepseek-ai/dsh-host-webserver'
+import { Config, WORKSPACE_CONFIG_GLOBAL } from './config.ts'
+
+export { Config } from './config.ts'
+
+/** Publish startup preferences before browser activation.
+ * @param ctx - Host bootstrap context.
+ * @param config - validated workspace preferences.
+ */
+export function apply(ctx: Context, config: Config = Config({})): void {
+  ctx.on('webserver/index-inject', (table) => {
+    table.push({ kind: 'global', name: WORKSPACE_CONFIG_GLOBAL, value: config })
+  })
+}

@@ -36,9 +36,13 @@ import type { SettingsSchemaOperations } from './schema-operations.ts'
 import { ProviderEditor, type ProviderEditorProps } from './ProviderEditor.tsx'
 import type { en } from './locales.ts'
 import styles from './ModelsSection.module.css'
+import { presentEntries } from '@deepseek-ai/dsh-util-values'
+import type { Config } from '../onboarding-config.ts'
 
 /** Injected dependencies of {@link ModelsSection} (slot `inject`). */
 export interface ModelsSectionInjected {
+  /** Display-only policy; the complete store still owns provider/settings facts. */
+  presentation?: Pick<Config, 'providerOrder' | 'hiddenProviders'>
   /** The page store (loaded on mount, refreshed on pushed invalidations). */
   controller: ModelsSettingsStore
   hooks: {
@@ -221,18 +225,21 @@ export function providerCopy(template: string, target: ProviderIdentity): string
  * @returns the section, or null while the shell has not injected yet.
  */
 export function ModelsSection(props: ModelsSectionProps): ReactNode {
-  const { controller, useSnapshot, operations, schema, t, renderSlot } = props
+  const { controller, useSnapshot, operations, schema, t, renderSlot, presentation } = props
   if (
     controller === undefined || useSnapshot === undefined || operations === undefined
     || schema === undefined || t === undefined
   ) return null
-  return <Loaded injected={{ controller, useSnapshot, operations, schema, t }} renderSlot={renderSlot} />
+  return <Loaded injected={{ controller, useSnapshot, operations, schema, t,
+    ...presentation === undefined ? {} : { presentation } }} renderSlot={renderSlot} />
 }
 
 function Loaded({ injected, renderSlot }: { injected: ModelsSectionFace; renderSlot: ModelsRenderSlot }): ReactNode {
   const { controller, operations, schema, t } = injected
   const snapshot = injected.useSnapshot(value => value)
-  const state = { ...snapshot, rows: snapshot.rows.map(row => row.entry.provider === 'deepseek-account'
+  const state = { ...snapshot, rows: presentEntries(snapshot.rows, row => row.entry.provider,
+    injected.presentation?.providerOrder ?? ['deepseek-account', 'deepseek-official'],
+    injected.presentation?.hiddenProviders).map(row => row.entry.provider === 'deepseek-account'
     ? { ...row, entry: { ...row.entry, displayName: t('deepSeekAccount') } } : row) }
   const [editing, setEditing] = useState<EditorTarget | undefined>(undefined)
   const [addOpen, setAddOpen] = useState(false)
@@ -337,7 +344,7 @@ function Loaded({ injected, renderSlot }: { injected: ModelsSectionFace; renderS
 
   // One fact decides both first-run postures on this page and the onboarding
   // step: whether the user already has a provider to talk to.
-  const anyUsable = state.rows.some(providerUsable)
+  const anyUsable = snapshot.rows.some(providerUsable)
   const configured = state.rows.filter(row => row.configured)
   const configurable = state.rows.filter(row => state.namespaces.has(row.entry.settingsNs))
   const addable: AddableRow[] = state.rows.flatMap((row) => {

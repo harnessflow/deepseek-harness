@@ -35,6 +35,8 @@ Mouse selection uses native browser clicks, including their cancellation behavio
 
 ### Model and effort
 
+Optional Host configuration `providerOrder` lists exact provider ids to lead each selectable directory; unlisted providers retain relative order. `hiddenProviders` omits exact ids from the composer menu and `/model` choices only. An absent policy preserves native ordering. A saved hidden selection still resolves its name and reasoning effort from the complete directory; credentials, execution availability, saved selection and errors remain unchanged.
+
 Models stay grouped by provider. The composer menu shows model and effort names only, with DeepSeek Account first and DeepSeek second; third-party providers retain their catalog order. Navigation chevrons use `--dsw-alias-menu-icon`. The `/model` popup shows provider names and catalog descriptions; it localizes the two built-in DeepSeek descriptions and leaves external provider descriptions verbatim. The popup applies the selected model's default effort; the composer can then choose any advertised effort. An adapter without reasoning metadata leaves the Effort row absent; there is no arbitrary effort input.
 
 The composer replaces the model and effort text with the Models icon when the expanded controls cannot share one line, and restores the text when space permits. The full selection remains available in the trigger's accessible name, tooltip, and menu.

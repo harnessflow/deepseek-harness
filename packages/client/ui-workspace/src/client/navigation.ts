@@ -138,6 +138,7 @@ class UiWorkspaceService extends Service implements UiWorkspace {
    * @param sessions - pure Session Controller.
    * @param view - the browser's viewing-store write set (one instance shared with its registration).
    * @param notify - show one notice through the Workspace notice channel.
+   * @param initializeDefaultOnEmpty - whether cold empty startup prepares the native default workspace.
    */
   constructor(
     ctx: Context,
@@ -146,6 +147,7 @@ class UiWorkspaceService extends Service implements UiWorkspace {
     private readonly sessions: ISessions,
     private readonly view: Pick<WorkspaceViewStoreActions, 'pinSessionOrder'>,
     private readonly notify: (toast: RowToast) => void,
+    private readonly initializeDefaultOnEmpty = true,
   ) {
     super(ctx, 'uiWorkspace')
     ctx.effect(() => {
@@ -334,7 +336,7 @@ class UiWorkspaceService extends Service implements UiWorkspace {
       sessionId = await this.reuseBlank(workspace.workspaceId, summary.id)
     }
     let target = workspace?.workspaceId ?? recentWorkspace(workspaces.items, sessions.byId)
-    if (target === undefined && workspaces.items.length === 0 && sessions.ids.length === 0) {
+    if (this.initializeDefaultOnEmpty && target === undefined && workspaces.items.length === 0 && sessions.ids.length === 0) {
       const prepared = await this.initializeDefaultWorkspace(navigation)
       if (navigation.aborted) return
       target = prepared?.workspaceId

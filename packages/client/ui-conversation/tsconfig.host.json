@@ -6,10 +6,13 @@
     "tsBuildInfoFile": "lib/tsconfig.host.tsbuildinfo"
   },
   "files": [
+    "src/hero-config.ts",
     "src/submission-settings.ts",
     "src/index.ts"
   ],
   "references": [
+    { "path": "../../host/webserver" },
+    { "path": "../../util/package-manifest" },
     {
       "path": "../../../vendor/cordis"
     },

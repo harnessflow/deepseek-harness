@@ -11,7 +11,7 @@ import { SlotTestRuntime, stubConfigForm } from '@deepseek-ai/dsh-client-test-ru
 import { LocaleRuntime } from '@deepseek-ai/dsh-client-locale/client'
 import type { PropsRenderSlots } from '@deepseek-ai/dsh-client-ui-slots'
 import {
-  ConversationEventRegistry, ConversationViewRegistry, EMPTY_CONVERSATION_SNAPSHOT, type ConvViewOwnerProps,
+  ConversationEventRegistry, ConversationViewRegistry, UserTextPresentationRegistry, EMPTY_CONVERSATION_SNAPSHOT, type ConvViewOwnerProps,
 } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import { en as conversationEn, NS as CONVERSATION_NS, zh as conversationZh } from '@deepseek-ai/dsh-client-ui-conversation/src/client/locales.ts'
 import { apply as applyChat, inject as injectChat } from '@deepseek-ai/dsh-client-ui-chat/client'
@@ -109,6 +109,7 @@ async function bench(snapshot: ChatSnapshot) {
   ctx.provide('uiConversation', {
     events,
     views,
+    userText: new UserTextPresentationRegistry(ctx),
     groups: { register: () => () => {} },
     binding: () => ({ target: () => chat, snapshot: conversation }),
   } as never)

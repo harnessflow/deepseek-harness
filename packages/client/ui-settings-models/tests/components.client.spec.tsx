@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 /** Section, setup-card, and hand-written editor behavior over a scripted wire face. */
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, onTestFinished, vi } from 'vitest'
 import Schema from '@deepseek-ai/schemastery'
 import { Context } from '@deepseek-ai/cordis'
 import { bindSnapshotSelector, RemoteError } from '@deepseek-ai/dsh-client-test-runtime'
@@ -283,7 +283,7 @@ function cardSeatCalls(
     ])
 }
 
-async function mountFace(scripted: ReturnType<typeof scriptedFace>) {
+async function mountFace(scripted: ReturnType<typeof scriptedFace>, presentation?: ModelsSectionProps['presentation']) {
   const { face, update, mutate, set, unset } = scripted
   const ctx = ctxWith(face)
   const mirror = new SettingsDescribeMirror(ctx)
@@ -296,6 +296,7 @@ async function mountFace(scripted: ReturnType<typeof scriptedFace>) {
     operations: operationsWith(face),
     schema: settingsSchema,
     t,
+    ...presentation === undefined ? {} : { presentation },
     renderSlot: renderSlot as unknown as ModelsSectionProps['renderSlot'],
   }
   const view = render(<ModelsSection {...injected} />)
@@ -331,6 +332,26 @@ async function mountDeepSeekCard(overrides: Parameters<typeof scriptedFace>[0] =
 }
 
 describe('ModelsSection', () => {
+  it('hides only display rows while retaining complete credentials and usable-provider onboarding facts', async () => {
+    const b = await mountFace(scriptedFace(), { hiddenProviders: ['openai'] })
+    onTestFinished(() => b.ctx.fiber.dispose())
+    expect(screen.queryByText('openai', { exact: true })).toBeNull()
+    expect(screen.getByRole('button', { name: deepSeekCopy(en.editProvider) })).toBeDefined()
+    expect(b.controller.store.getSnapshot().rows.some(row => row.entry.provider === 'openai')).toBe(true)
+    expect(b.set).not.toHaveBeenCalled()
+    expect(b.unset).not.toHaveBeenCalled()
+    expect(b.mutate).not.toHaveBeenCalled()
+  })
+
+  it('orders configured display precedence without changing the authoritative settings rows', async () => {
+    const b = await mountFace(scriptedFace(), { providerOrder: ['openai'] })
+    onTestFinished(() => b.ctx.fiber.dispose())
+    const leading = screen.getByText('openai', { exact: true })
+    const following = screen.getByText('DeepSeek', { exact: true })
+    expect(leading.compareDocumentPosition(following) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0)
+    expect(b.controller.store.getSnapshot().rows[0]?.entry.provider).toBe('deepseek-official')
+  })
+
   it('hides the add action when no settings namespace can open an editor', async () => {
     const scripted = scriptedFace()
     scripted.face.settings.describe.mockResolvedValue(remoteOk({ writable: true, hasDocument: false, namespaces: [] }))

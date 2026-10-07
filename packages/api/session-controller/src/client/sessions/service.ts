@@ -17,6 +17,7 @@ import type {
 } from '../contract/sessions.ts'
 import type { SessionReferenceSource } from '../index.ts'
 import { createScope, scopeIdentityOf, scopeOf as scopeTagOf } from '../scope.ts'
+import { submissionOrigin } from '../submission-origin.ts'
 import { SessionManager } from './manager.ts'
 import type { SessionRemotes } from './remotes.ts'
 import type { SessionListPhase, SessionSearchResultItem, SessionProjectionSnapshot } from './manager.ts'
@@ -499,6 +500,14 @@ export class ClientSessions implements ISessions {
    */
   scopeOf(ctx: Context): SessionId | undefined {
     return scopeTagOf(ctx)
+  }
+
+  /** Parse display context through the owning service for cross-bundle consumers.
+   * @param requestId - complete native request identity; never authentication data.
+   * @returns namespace, or undefined for legacy or malformed identities.
+   */
+  submissionOrigin(requestId: string | undefined): string | undefined {
+    return submissionOrigin(requestId)
   }
 
   /**

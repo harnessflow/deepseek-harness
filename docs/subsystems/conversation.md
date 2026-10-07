@@ -8,6 +8,8 @@ This page defines the data model and the extension path for a business-owned Con
 
 ## Data model and ownership
 
+`UserTextPresentationRegistry` owns ordered display contributions. Each `UserTextPresentation` has a unique key and receives `UserTextInput` containing the original text, optional full request id and current Session directory. Its `UserTextPresentationFace` exposes a stable contribution snapshot, subscription and plain-string presentation; `undefined` delegates. The [package contract](../../packages/client/ui-conversation/README.md#conversation-assembly) defines lifetime and authoritative-content preservation.
+
 The Session Controller owns the contiguous loaded logical-event window. Each `SessionEventLikeEntry` is either `{ type: 'event', event: SessionEvent }` for one durable event or `{ type: 'transient', event: AssistantLiveChunkEvent }` for one Client-only `assistant/live-chunk` presentation. Both inner events expose `type`, `seq`, `time`, and `data`. `ui-conversation` passes these entries to the assembler without opening a second history stream. One `ConversationNodeAssembler` per Session applies every registered Definition and publishes an independent source for each registered view target.
 
 | Concept | Owner and purpose |

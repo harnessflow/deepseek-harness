@@ -178,8 +178,17 @@ function viewInstance(slots: SlotRegistry) {
 const settled = (): Promise<void> => new Promise((resolve) => { setTimeout(resolve, 0) })
 
 describe('ui-workspace apply', () => {
-  it('keeps the host Loader entry inert', () => {
-    expect(hostApply).not.toThrow()
+  it('publishes the native default startup preference through Host bootstrap', async () => {
+    const ctx = new Context()
+    const fiber = ctx.plugin({ apply: hostApply })
+    await fiber.await()
+    const table: import('@deepseek-ai/dsh-host-webserver').IndexInjection[] = []
+    ctx.emit('webserver/index-inject', table)
+    expect(table).toEqual([{ kind: 'global', name: '__DSH_WORKSPACE_CONFIG__', value: { initializeDefaultOnEmpty: true } }])
+    await fiber.dispose()
+    const after: import('@deepseek-ai/dsh-host-webserver').IndexInjection[] = []
+    ctx.emit('webserver/index-inject', after)
+    expect(after).toEqual([])
   })
 
   it('declares the services it drives', () => {

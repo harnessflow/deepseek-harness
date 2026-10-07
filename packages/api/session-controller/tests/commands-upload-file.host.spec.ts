@@ -335,7 +335,8 @@ describe('Session file uploads', () => {
 
   it('deduplicates a retried rpcId already present in the Agent inbox', async () => {
     const { controller, agent, followup } = await uploadHarness()
-    const request = promptRequest([{ type: 'text', text: 'once' }])
+    const request = { ...promptRequest([{ type: 'text', text: 'once' }]),
+      requestId: 'dsh-origin:audit/start:550e8400-e29b-41d4-a716-446655440000' as SessionRequestId }
     await controller.prompt(request)
     agent.inbox.append('next-turn', followup.mock.calls[0]?.[0] as UserMessage)
     await expect(controller.prompt(request)).resolves.toEqual({ accepted: true })
@@ -344,7 +345,8 @@ describe('Session file uploads', () => {
 
   it('deduplicates a retried rpcId already present in the durable log', async () => {
     const { controller, agent, followup } = await uploadHarness()
-    const request = promptRequest([{ type: 'text', text: 'once' }])
+    const request = { ...promptRequest([{ type: 'text', text: 'once' }]),
+      requestId: 'dsh-origin:audit/start:550e8400-e29b-41d4-a716-446655440000' as SessionRequestId }
     agent.session.append('turn/start', { turn: 1 })
     agent.session.append('user/message', createUserMessage({
       content: [{ type: 'text', text: 'unidentified' }],

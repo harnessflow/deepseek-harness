@@ -380,6 +380,17 @@ function mount(
 }
 
 describe('Hero chrome', () => {
+  it('uses configured plain headline and hides the badge without changing brand controls', () => {
+    const renderSlot = vi.fn<HeroShellProps['renderSlot']>(() => null)
+    const view = render(<HeroShell t={makeTranslate(en, commonEn)} renderSlot={renderSlot}
+      presentation={{ headline: () => 'Discover business defects', showPreviewBadge: false }} />)
+    expect(view.getByText('Discover business defects')).toBeTruthy()
+    expect(view.queryByText('Preview')).toBeNull()
+    expect(renderSlot.mock.calls[0]?.[0]).toBe('conversation.hero.brand.mark')
+    view.rerender(<HeroShell t={makeTranslate(en, commonEn)} renderSlot={renderSlot}
+      presentation={{ headline: () => '发现业务缺陷', showPreviewBadge: false }} />)
+    expect(view.getByText('发现业务缺陷')).toBeTruthy()
+  })
   it('renders the English preview badge through the hero locale seat', () => {
     const renderSlot = vi.fn<HeroShellProps['renderSlot']>(() => null)
     const view = render(<HeroShell t={makeTranslate(en, commonEn)} renderSlot={renderSlot} />)

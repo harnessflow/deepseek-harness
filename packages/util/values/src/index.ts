@@ -304,3 +304,5 @@ export class WeakMapWithValues<Key extends object, Value> {
     this.valueSet.clear()
   }
 }
+
+export { presentEntries } from './present-entries.ts'

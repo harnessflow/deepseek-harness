@@ -24,6 +24,7 @@ import { ConversationEventRegistry } from './event-registry.ts'
 import { HistoricalImageCache } from './historical-images.ts'
 import { ConversationViewRegistry } from './view-registry.ts'
 import { ConversationGroupRegistry } from './group-registry.ts'
+import { UserTextPresentationRegistry } from './user-text.ts'
 
 /** Observable faces published for one Session's Conversation assembly. */
 export interface ConversationBinding {
@@ -184,6 +185,8 @@ interface BindingRecord {
 
 /** Root service owning Conversation registries and per-Session bindings. */
 export class UiConversation extends Service {
+  /** Display-only user text contributions; never rewrite submitted or persisted content. */
+  readonly userText: UserTextPresentationRegistry
   /** Registry of event matchers and target snapshot builders. */
   readonly events: ConversationEventRegistry
   /** Registry of target View definitions. */
@@ -200,6 +203,7 @@ export class UiConversation extends Service {
   constructor(ctx: Context, private readonly sessions: ISessions) {
     super(ctx, 'uiConversation')
     this.events = new ConversationEventRegistry(ctx)
+    this.userText = new UserTextPresentationRegistry(ctx)
     this.views = new ConversationViewRegistry(ctx)
     this.groups = new ConversationGroupRegistry(ctx, this.views)
     this.images = new HistoricalImageCache(ctx, sessions)

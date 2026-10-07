@@ -56,6 +56,23 @@ function state(overrides: Partial<ModelDirectoryState> = {}): ModelDirectoryStat
 afterEach(cleanup)
 
 describe('ModelSelect reasoning effort', () => {
+  it('retains a saved hidden provider and its effort while omitting it only from selectable rows', () => {
+    const directory = createSnapshotStore(state({ groups: [
+      ...state().groups,
+      { id: 'byok-deepseek', name: 'Custom DeepSeek', models: [{ id: 'custom', name: 'Custom model' }] },
+      { id: 'aiqa-relay', name: 'HarnessFlow', models: [{ id: 'relay', name: 'Relay model' }] },
+    ] }))
+    render(<ModelSelect locked={false} available directory={directory} load={vi.fn()} select={vi.fn()} t={t}
+      presentation={{ providerOrder: ['aiqa-relay'], hiddenProviders: ['deepseek-account', 'deepseek-official'] }} />)
+    const trigger = screen.getByRole('button', { name: '选择模型，当前 DeepSeek-V4-Flash，推理等级 High' })
+    fireEvent.click(trigger)
+    fireEvent.click(screen.getByRole('menuitem', { name: /推理等级/ }))
+    expect(screen.getAllByRole('menuitemradio').map(item => item.textContent)).toEqual(['Off', 'High', 'Max'])
+    fireEvent.keyDown(screen.getByRole('menuitemradio', { name: 'High' }), { key: 'Escape' })
+    fireEvent.click(screen.getByRole('menuitem', { name: /^模型/ }))
+    expect(screen.getAllByRole('menuitemradio').map(item => item.textContent)).toEqual(['Relay model', 'Custom model'])
+    expect(directory.getSnapshot().current?.provider).toBe('deepseek-official')
+  })
   it('renders effort names without descriptions and submits the effort as part of the session selection', async () => {
     const directory = createSnapshotStore<ModelDirectoryState>(state())
     const select = vi.fn(async (selection: ModelSelection) => {

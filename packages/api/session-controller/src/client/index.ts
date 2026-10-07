@@ -25,6 +25,7 @@ export type {
   SessionRemote,
 } from './transport.ts'
 export { createScope, scopeOf } from './scope.ts'
+export { createSubmissionRequestId, submissionOrigin } from './submission-origin.ts'
 export type { AgentContext, AgentScopeHandle } from './scope.ts'
 export { SessionCreateError, SessionForkError } from './sessions/service.ts'
 export type { SessionBinding, SessionListState, SessionSummary } from './sessions/service.ts'

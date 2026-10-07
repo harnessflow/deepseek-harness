@@ -28,6 +28,7 @@ import { ModelDirectoryResolver } from './service.ts'
 import type { ModelSelectInjected } from './slots.ts'
 import { ModelSelect } from './ModelSelect.tsx'
 import { en, zh, type ModelKey } from './locales.ts'
+import { Config, MODEL_PRESENTATION_GLOBAL, presentProviders, type ProviderPresentation } from '../presentation.ts'
 
 export { ModelDirectory } from './directory.ts'
 export type { ModelDirectoryState } from './directory.ts'
@@ -64,9 +65,9 @@ function descriptionOf(
 }
 
 /** Flatten the directory into popup rows; failure rows are listed for visibility but never selectable. */
-function optionsOf(directory: ModelDirectoryState, t: TranslateNS<'model'>): SelectOption[] {
+function optionsOf(directory: ModelDirectoryState, t: TranslateNS<'model'>, presentation: ProviderPresentation): SelectOption[] {
   const rows: SelectOption[] = []
-  for (const group of directory.groups) {
+  for (const group of presentProviders(directory.groups, group => group.id, presentation)) {
     const name = group.id === 'deepseek-account' ? t('provider.account') : group.name
     for (const model of group.models) {
       const description = descriptionOf(group.id, model, t)
@@ -81,7 +82,7 @@ function optionsOf(directory: ModelDirectoryState, t: TranslateNS<'model'>): Sel
       })
     }
   }
-  for (const failure of directory.failures) {
+  for (const failure of presentProviders(directory.failures, failure => failure.id, presentation)) {
     rows.push({
       id: `failure/${failure.id}`,
       label: failure.id === 'deepseek-account' ? t('provider.account') : failure.name,
@@ -129,6 +130,7 @@ export const inject = ['commandUi', 'locale', 'sessions', 'slots', 'remote', 're
  * @param ctx - client root context.
  */
 export function apply(ctx: ClientContext): void {
+  const presentation = Config((globalThis as Record<string, unknown>)[MODEL_PRESENTATION_GLOBAL] ?? {})
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'ui-model-selection: dictionaries')
 
   // Non-slot faces (the command description, the popup option builder) read
@@ -154,7 +156,7 @@ export function apply(ctx: ClientContext): void {
           if (sessions.subagentAddress(session.sessionId) !== undefined) {
             throw new Error('model selection is unavailable for addressed subagent sessions')
           }
-          return optionsOf(await models.directoryFor(session.sessionId).load(), t)
+          return optionsOf(await models.directoryFor(session.sessionId).load(), t, presentation)
         },
         onSelect: async (option, session) => {
           if (sessions.subagentAddress(session.sessionId) !== undefined) {
@@ -186,6 +188,7 @@ export function apply(ctx: ClientContext): void {
         const directory = models.directoryFor(sessionId)
         const available = sessions.subagentAddress(sessionId) === undefined
         return {
+          presentation,
           available,
           directory: directory.store,
           load: () => {

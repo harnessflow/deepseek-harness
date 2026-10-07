@@ -13,6 +13,7 @@ import { RemoteError } from '@deepseek-ai/dsh-typert-protocol'
 import { createClientTest, webApp } from '@deepseek-ai/dsh-client-test-runtime/src/assembly/index.ts'
 import type { PendingSubmissionRetirement } from '../src/client/contract/session.ts'
 import type { SessionRequestId } from '../src/types.ts'
+import { submissionOrigin } from '../src/client/submission-origin.ts'
 import { ev, historyValue } from './event-script.client.ts'
 import { sessionBench } from './remote/bench.client.ts'
 import {
@@ -69,6 +70,21 @@ async function settleFrames(): Promise<void> {
 }
 
 describe('beginSubmission', () => {
+  it('keeps the complete origin-prefixed random identity through prompt and durable echo retirement', async ({ mock, start }) => {
+    const session = await sessionBench(mock, start, SID)
+    await session.open()
+    const handle = session.beginSubmission({ mode: 'queue', text: '发送', attachments: [], origin: 'audit/start' })
+    expect(submissionOrigin(handle.requestId)).toBe('audit/start')
+    const other = session.beginSubmission({ mode: 'queue', text: '发送', attachments: [], origin: 'audit/start' })
+    expect(other.requestId).not.toBe(handle.requestId)
+    other.abandon()
+    const result = await session.prompt([{ type: 'text', text: '发送' }], 'queue', undefined, handle.requestId)
+    expect(result.ok).toBe(true)
+    expect(mock.log.requests('session/prompt')).toMatchObject([{ requestId: handle.requestId, sessionId: SID }])
+    await pushEvent(mock, promptEvent(SessionSeq(0), handle.requestId))
+    await settleFrames()
+    expect(session.getSnapshot().pendingSubmissions).toEqual([])
+  }, COLD_BOOT_TIMEOUT_MS)
   it('inserts the echo synchronously and flips the engaging edge before any prompt call', async ({ mock, start }) => {
     const session = await sessionBench(mock, start, SID)
     expect(session.getSnapshot()).toMatchObject({ pendingSubmissions: [], promptAttempted: false })

@@ -158,6 +158,8 @@ export interface ChatNodeInjected {
 
 /** Stable owner currency delivered to a keyed Chat renderer. */
 export interface ChatNodeOwnerProps {
+  /** Optional plain user-text display; original content and action text remain unchanged. */
+  userTextPresentation?: import('@deepseek-ai/dsh-client-ui-conversation/client').UserTextPresentationFace
   /** Renderer-owned Node portion selected by the grouping Definition. */
   groupPart?: string
   cwd?: string | undefined
@@ -230,6 +232,8 @@ export interface PerformanceUsageInjected {
 
 /** Business callbacks injected into the Chat view. */
 export interface ChatViewInjected {
+  /** Observable user-text display contributions shared with queues and echoes. */
+  userTextPresentation?: import('@deepseek-ai/dsh-client-ui-conversation/client').UserTextPresentationFace
   hooks: {
     /** Live presentation policy derived from the accepted work-details mode. */
     presentation: ObservableSnapshot<ChatPresentationPolicy>

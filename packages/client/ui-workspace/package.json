@@ -52,6 +52,7 @@
     "@deepseek-ai/cordis": "workspace:~"
   },
   "devDependencies": {
+    "@deepseek-ai/dsh-host-webserver": "workspace:*",
     "@deepseek-ai/cordis": "workspace:~",
     "@deepseek-ai/dsh-api-remotes": "workspace:*",
     "@deepseek-ai/dsh-agent": "workspace:*",
@@ -80,6 +81,7 @@
     "react": "^18.2.0",
     "@deepseek-ai/dsh-client-shortcuts": "workspace:*"
   },
+  "dependencies": { "@deepseek-ai/schemastery": "workspace:~" },
   "files": [
     "lib/index.js",
     "lib/client.js",

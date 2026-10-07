@@ -25,6 +25,8 @@ kind: "package-reference"
 <a id="conversation-assembly"></a>
 ## Conversation 组装
 
+`ctx.uiConversation.userText.register({ key, present })` 注册随 effect 生命周期释放的纯字符串展示贡献。`present` 接收原文、完整请求标识和当前原生 Session 目录；返回 `undefined` 时委托后续贡献或原生渲染。Chat 回显、已入档消息、回放及 QueueDock 共用该呈现。模型输入、持久内容、附件、复制及排队编辑保留原文。请求 origin 只表达展示上下文，不授予权限；贡献还须核对原文，避免隐藏已编辑的消息。
+
 `UiConversation.events` 是 event Definition 的唯一 registry，`UiConversation.views` 是 target snapshot builder 的唯一 registry。两者都拒绝重复 key、保持注册顺序、返回幂等 disposer，并在 contribution roster 变化时重建现有 binding。`UiConversation.binding(bindingOrSessionId)` 为当前 Session Controller binding 返回 identity 稳定的 Conversation binding，不会另开事件源。 View Definition 可以声明 `toolCallFocus`，将工具调用 id 转换为自身的焦点标识。仅当此目标拥有可见的 View 条目时，Conversation 才提供 Inspect 回调；Chat 直接使用回调，不选择目标。
 
 `ConversationBinding.openTurn` 是对象标识稳定的只读来源：最新轮次的开始事件已加载且尚未结束时提供其编号，否则为 `undefined`。观察到的轮次变化同步发布，即使没有活动视图也是如此。固定停止输入同时读取这个来源、会话运行状态和待处理交互状态。卸载会话绑定会解除其事件源订阅。
@@ -41,6 +43,8 @@ target package 通过 declaration merge 扩展 snapshot 与 Location data map，
 
 <a id="shell-and-standard-props"></a>
 ## Shell 与标准 props
+
+可选 Host 配置 `hero.headline` 和 `hero.workspacePlaceholder` 接收原生 `LocalizedText`；`hero.showPreviewBadge` 控制既有预览标签。未配置的字段保留原生文案和可见徽标。浏览器启动数据经 locale resolver 和既有 hero 组件呈现，不改变 Session 内容或品牌。
 
 共享图片插槽属性将展示选择与持久化引用分开：`thumbnail` 请求完整缩放的附件列表缩略图，`compact` 请求裁剪的图片方块。每张图片可通过可选的 `label` 提供无障碍展示名称；加载和缓存标识仍使用原始附件引用。[ui-attachment](../ui-attachment/README.zh.md) 负责渲染与灯箱。
 

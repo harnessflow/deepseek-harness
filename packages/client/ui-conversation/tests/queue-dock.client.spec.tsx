@@ -139,6 +139,39 @@ function imageRow(id: string, refId: string, text = ''): UserMessage {
 }
 
 describe('QueueDock', () => {
+  it('presents an origin echo and admitted queue without rewriting attachments or the editable text', () => {
+    const text = '/audit original'
+    const pending = {
+      ...snapshotWith([]),
+      pendingSubmissions: [{ requestId: 'origin-id' as never, placement: 'queued' as const, time: 1,
+        text, attachments: [{ type: 'file' as const,
+          value: { attachmentId: 'file-id' as never, name: 'notes.txt', bytes: 10 } }] }],
+    }
+    const source = liveSession(pending)
+    const definitions: readonly [] = []
+    const props = kitFor(pending, { userTextPresentation: {
+      getSnapshot: () => definitions, subscribe: () => () => {},
+      present: (original, requestId) => original === text && requestId === 'origin-id'
+        ? '<b>Audit</b> · project' : undefined,
+    } })
+    const view = render(<QueueDock {...props} useSession={source.useSession} useProjection={source.useProjection} />)
+    expect(view.getByText('<b>Audit</b> · project')).toBeDefined()
+    expect(view.container.querySelector('b')).toBeNull()
+    expect(view.getByLabelText('排队文件 notes.txt')).toBeDefined()
+    const admitted = { ...imageRow('admitted', 'image-id', text),
+      source: { kind: 'user' as const, rpcId: 'origin-id' as never } }
+    act(() => { source.push(snapshotWith([admitted])) })
+    expect(view.getByText('<b>Audit</b> · project')).toBeDefined()
+    expect((view.getByRole('button', { name: '编辑排队消息' }) as HTMLButtonElement).disabled).toBe(true)
+    act(() => { source.push(snapshotWith([{ ...admitted, content: [{ type: 'text', text }] }])) })
+    fireEvent.click(view.getByRole('button', { name: '编辑排队消息' }))
+    expect((view.getByRole('textbox') as HTMLTextAreaElement).value).toBe(text)
+    fireEvent.click(view.getByRole('button', { name: '取消编辑' }))
+    act(() => { source.push(snapshotWith([{ ...admitted, content: [{ type: 'text', text: '/audit edited' }] }])) })
+    expect(view.getByText('/audit edited')).toBeDefined()
+    expect(view.queryByText('<b>Audit</b> · project')).toBeNull()
+  })
+
   it.each(['ABC', 'ACB', 'BAC', 'BCA', 'CAB', 'CBA'])(
     'keeps repeated queued submissions in Dock through acceptance and FIFO claims (%s)', (hostOrder) => {
       const pending: SessionSnapshot['pendingSubmissions'] = ['A', 'B', 'C'].map(id => ({

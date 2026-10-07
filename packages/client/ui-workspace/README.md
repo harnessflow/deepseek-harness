@@ -25,6 +25,8 @@ This package lets users browse grouped or flat Session lists, choose a Workspace
 <a id="use-this-package"></a>
 ## Use this package
 
+Host configuration `initializeDefaultOnEmpty` defaults to `true`. Set it to `false` to leave a cold, empty Workspace and Session list unselected until the user chooses a directory. Existing Workspaces, restored navigation, explicit creation and picker cancellation keep their native behavior. This bootstrap preference creates no durable state.
+
 Use the sidebar to browse Workspaces and their Sessions, reorder them, and start new ones; use the picker in the Session Intent hero to choose a Workspace for a new session. An open Workspace shows five idle, non-blank Sessions by default. Running Sessions, including parents with running children, remain visible in their ordered positions without using that quota; the selected blank **New Session** is also an extra row until its first prompt. Each **Show more** click reveals up to five more idle Sessions; after the final batch, **Show less** restores the initial rows while keeping running Sessions visible. Closing and reopening the Workspace also restores this folded projection.
 
 ### Reordering and view options

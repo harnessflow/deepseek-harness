@@ -25,6 +25,8 @@ English | [中文](README.zh.md)
 <a id="conversation-assembly"></a>
 ## Conversation assembly
 
+`ctx.uiConversation.userText.register({ key, present })` adds an effect-owned, plain-string display contribution. `present` receives original text, the complete request id and the current native Session directory; `undefined` delegates to the next contribution or native rendering. Chat echoes, admitted messages, replay and QueueDock share this presentation. Model input, durable content, attachments, copying and queue editing retain the original text. Request origin expresses display context and grants no authority; contributions must also inspect the original text to avoid concealing edited messages.
+
 `UiConversation.events` is the single registry for event Definitions, and `UiConversation.views` is the single registry for target snapshot builders. Both registries reject duplicate keys, preserve registration order, return idempotent disposers, and rebuild existing bindings when their contribution roster changes. `UiConversation.binding(bindingOrSessionId)` returns one identity-stable Conversation binding for the current Session Controller binding. It does not open another event source. A View Definition may declare `toolCallFocus` to translate a tool-call id into its focus identity. Conversation supplies an Inspect callback only while such a target has a visible View entry; Chat consumes this callback without selecting a target.
 
 `ConversationBinding.openTurn` is an identity-stable, read-only source of the latest turn number when its start is loaded and it remains open, or `undefined` otherwise. Observed turn changes publish synchronously even when no View is active. Fixed stop input reads this source alongside Session running and pending-interaction state. Unloading the Session binding detaches its event-source subscription.
@@ -41,6 +43,8 @@ Target packages declaration-merge their snapshot and Location data maps, then re
 
 <a id="shell-and-standard-props"></a>
 ## Shell and standard props
+
+Optional Host configuration `hero.headline` and `hero.workspacePlaceholder` accept native `LocalizedText`; `hero.showPreviewBadge` controls the existing preview label. Unconfigured fields retain native text and the visible badge. Browser bootstrap uses the locale resolver and existing hero components without altering Session content or branding.
 
 The shared image slot props keep display choices separate from durable references: `thumbnail` requests a contained attachment-list thumbnail, while `compact` requests a cropped gallery tile. An optional per-image `label` supplies the accessible display name; loading and cache identity still use the original attachment reference. [ui-attachment](../ui-attachment/README.md) owns rendering and the lightbox.
 

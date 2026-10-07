@@ -52,6 +52,7 @@ import { RenameSessionMenuItem, SessionRenameDialog } from './session-actions/Re
 import { RowActionToast } from './session-actions/RowActionToast.tsx'
 import { WorkspacePicker } from './WorkspacePicker.tsx'
 import { en, zh, type WorkspaceKey } from './locales.ts'
+import { Config, WORKSPACE_CONFIG_GLOBAL } from '../config.ts'
 
 export type { UiWorkspace } from './navigation.ts'
 export type {
@@ -103,6 +104,7 @@ export const inject = [
  * @param ctx - client root context.
  */
 export function apply(ctx: Context): void {
+  const configured = Config((globalThis as Record<string, unknown>)[WORKSPACE_CONFIG_GLOBAL] ?? {})
   const sessions = ctx.get('sessions') as ISessions
   const workspaces = ctx.get('workspaces') as IWorkspaces
   // One viewing-store instance, created here as ui-layout does for its layout
@@ -116,6 +118,7 @@ export function apply(ctx: Context): void {
   const notify = (toast: RowToast): void => { rowToast.set({ ...toast, seq: ++toastSeq }) }
   const uiWorkspace = new UiWorkspaceService(
     ctx, ctx.remote.directoryPicker, workspaces, sessions, viewInstance.actions, notify,
+    configured.initializeDefaultOnEmpty,
   )
   ctx.slots.provideRoot({ hooks: { workspaces: workspaces.list } })
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'ui-workspace: dictionaries')

@@ -43,6 +43,7 @@ import { installStopShortcut } from './stop-shortcut.ts'
 import { TRAJECTORY_VIEW_ID, resolveActiveView } from './view-selection.ts'
 import { en, NS, zh, type ConversationKey } from './locales.ts'
 import { CONVERSATION_SETTINGS_NAMESPACE, type ConversationSettings } from '../submission-settings.ts'
+import { HeroConfig, HERO_CONFIG_GLOBAL } from '../hero-config.ts'
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface LocaleNamespaceMap {
@@ -149,6 +150,8 @@ function concreteConversation(ctx: Context): ConversationController {
  * @param ctx - Client root context.
  */
 export function apply(ctx: Context, config: Config = Config({})): void {
+  const hero = HeroConfig((globalThis as Record<string, unknown>)[HERO_CONFIG_GLOBAL] ?? {})
+  const { headline, workspacePlaceholder } = hero
   const sessions = ctx.sessions
   const slots = ctx.slots
   // Schemastery's field default is materialized before Cordis calls apply.
@@ -323,6 +326,11 @@ export function apply(ctx: Context, config: Config = Config({})): void {
       widthControls: { scope: 'root' },
     },
     inject: (sessionId: SessionId | undefined): ConversationInjected => ({
+      heroPresentation: {
+        ...headline === undefined ? {} : { headline: () => ctx.locale.resolveText(headline) },
+        ...workspacePlaceholder === undefined ? {} : { workspacePlaceholder: () => ctx.locale.resolveText(workspacePlaceholder) },
+        ...hero.showPreviewBadge === undefined ? {} : { showPreviewBadge: hero.showPreviewBadge },
+      },
       hooks: {
         composerBlock: sessionId === undefined ? ABSENT_BLOCK : composerBlocks.storeFor(sessionId),
       },
