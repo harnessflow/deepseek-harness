@@ -345,8 +345,19 @@ export interface ClientBootstrapModule {
   exports: Record<string, unknown>
 }
 
+/** One carrier-owned document boundary; no plugin registration or identity wire. */
+export interface ClientDocumentLifecycle {
+  readonly signal: AbortSignal
+  check?: (signal: AbortSignal) => Promise<boolean>
+  afterWithdraw?: () => void
+  bind(dispose: () => Promise<void>): void
+  withdraw(): Promise<void>
+}
+
 /** Stable page-global facade: queues early bundle registrations, then registers them live. */
 export interface ClientModuleLoaderTarget {
+  /** Created by the HTML facade before bootstrap scripts run. */
+  readonly document?: ClientDocumentLifecycle
   /** Queue before {@link create}; live registration after it returns. */
   mode: 'queue' | 'live'
   /** Registrations submitted by parser-preloaded scripts before the module system exists. */

@@ -553,7 +553,29 @@ export function bootInjections(graph: WebBootGraph): IndexInjection[] {
   const bootstrapId = JSON.stringify(CLIENT_MODULES_ID)
   const queue = `(()=>{
 const pendingQueue=[]
+const controller=new AbortController(), completion=Promise.withResolvers()
+let owner, disposing=false
+const finish=()=>{
+  if(!controller.signal.aborted||!owner||disposing)return
+  disposing=true
+  try{
+    Promise.resolve(owner()).then(()=>{
+      documentLifecycle.afterWithdraw?.()
+      completion.resolve()
+    },completion.reject).catch(completion.reject)
+  }catch(error){completion.reject(error)}
+}
+const documentLifecycle={
+  signal:controller.signal,
+  bind(dispose){
+    if(owner)throw new Error("client-modules: document owner already bound")
+    owner=dispose
+    finish()
+  },
+  withdraw(){controller.abort();finish();return completion.promise}
+}
 window.__ModuleLoader__={
+  document:documentLifecycle,
   mode:"queue",
   pendingQueue,
   load(registration){pendingQueue.push(registration)},

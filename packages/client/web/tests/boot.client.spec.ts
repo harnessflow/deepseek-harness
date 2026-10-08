@@ -137,6 +137,31 @@ describe('bootstrap failure rendering', () => {
 })
 
 describe('plugin activation', () => {
+  it('closes admission and preserves a synchronous root-unmount failure', async () => {
+    const failure = new Error('actual root unmount failed')
+    let modules!: modulesClient.ClientModuleSystem
+    let root!: Context
+    const target = installFacade(options => {
+      modules = modulesClient.createClientModuleSystem(target, { id: MODULES_ID, exports: moduleFace }, options)
+      return modules
+    })
+    target.load({ id: 'renderer', factory: () => ({ apply(ctx: Context) {
+      root = ctx.root
+      ctx.reflect.provide('uiRenderer', { mount: () => () => { throw failure } })
+    } }) })
+    win.__DSH_BOOT__ = {
+      rev: 'root-failure', entries: [{ id: 'renderer', url: '/renderer.js', rev: '1' }],
+      batches: [{ phase: 'application', url: '/batch.js', rev: '1', entries: ['renderer'] }],
+    }
+    const entry = new AppWebEntry(document.createElement('div'))
+    await entry.run()
+    await expect(entry.dispose()).rejects.toBe(failure)
+    expect(modules.entries.isStopped).toBe(true)
+    await expect(entry.dispose()).rejects.toBe(failure)
+    await modules.entries.stop()
+    await root.fiber.dispose()
+  })
+
   it('prefetches a parser-loaded immediate row through the injected bundle transport', async () => {
     const container = document.createElement('div')
     document.body.append(container)

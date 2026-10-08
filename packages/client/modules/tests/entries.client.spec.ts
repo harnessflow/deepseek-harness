@@ -3,7 +3,7 @@ import { Context } from '@deepseek-ai/cordis'
 import Loader from '@deepseek-ai/cordis-plugin-loader'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { apply as provideModules, createClientModuleSystem } from '../src/client/index.ts'
-import type { ClientBundleRegistration, ClientModuleLoaderTarget, WebBootEntry, WebBootGraph } from '../src/client/index.ts'
+import type { ClientBundleRegistration, ClientDocumentLifecycle, ClientModuleLoaderTarget, WebBootEntry, WebBootGraph } from '../src/client/index.ts'
 
 const contexts: Context[] = []
 afterEach(async () => {
@@ -29,11 +29,12 @@ const deferred = () => {
   return { promise, resolve }
 }
 
-async function bench(initial: WebBootGraph, factories: Record<string, ClientBundleRegistration['factory']>, start = true) {
+async function bench(initial: WebBootGraph, factories: Record<string, ClientBundleRegistration['factory']>, start = true, lifecycle?: ClientDocumentLifecycle) {
   const ctx = new Context()
   contexts.push(ctx)
   const fetched: string[] = []
   const target: ClientModuleLoaderTarget = {
+    ...(lifecycle === undefined ? {} : { document: lifecycle }),
     mode: 'queue', pendingQueue: [], load: () => {},
     create: options => createClientModuleSystem(target, { id: 'bootstrap', exports: { inject: ['loader'], apply: provideModules } }, options),
   }
@@ -227,6 +228,66 @@ it('ignores superseded queued snapshots and rebuilds of absent or unchanged entr
   await b.modules.entries.reload('a', 'r2')
   await b.modules.entries.sync(graph())
   expect(b.fetched).toHaveLength(1)
+})
+
+it('cancels a signal-ignoring initial check and never admits an already queued rebuilt frame', async () => {
+  const controller = new AbortController(), entered = deferred()
+  let drain: () => Promise<void> = async () => {}
+  const lifecycle: ClientDocumentLifecycle = {
+    signal: controller.signal,
+    check: () => { entered.resolve(); return new Promise<boolean>(() => {}) },
+    bind() {},
+    withdraw: vi.fn(() => { controller.abort(); return drain() }),
+  }
+  const b = await bench(graph(row('pet')), { pet: () => ({ apply() {} }) }, false, lifecycle)
+  drain = () => b.modules.entries.stop()
+  const starting = b.modules.entries.start(b.ctx.loader, b.modules.manifest)
+  const failedStart = expect(starting).rejects.toThrow('Document withdrawn')
+  await entered.promise
+  const rebuilt = b.modules.entries.reload('pet', 'r1')
+  expect(b.fetched).toEqual([])
+  expect([...b.ctx.loader.entries()]).toEqual([])
+  await lifecycle.withdraw()
+  await Promise.all([failedStart, rebuilt, b.modules.entries.retry(), b.modules.entries.sync(graph())])
+  expect(b.modules.manifest.modules[0]?.rev).toBe('r0')
+  expect(b.fetched).toEqual([])
+  expect(b.modules.entries.isStopped).toBe(true)
+})
+
+it('ignores a late rejection queued before a newer retry cancels its await continuation', async () => {
+  const controller = new AbortController()
+  const lifecycle: ClientDocumentLifecycle = {
+    signal: controller.signal, check: async () => true, bind() {},
+    withdraw: vi.fn(async () => { controller.abort() }),
+  }
+  const b = await bench(graph(row('pet')), { pet: () => ({ apply() {} }) }, true, lifecycle)
+  const pending = Promise.withResolvers<boolean>(), entered = deferred(), cancelled = deferred()
+  let next: Promise<void> | undefined
+  let calls = 0
+  lifecycle.check = () => {
+    if (calls++ > 0) return Promise.resolve(true)
+    entered.resolve()
+    // Forward the failure, then cancel before the admission await continuation runs.
+    const late: PromiseLike<boolean> = {
+      then(resolve, reject) {
+        return pending.promise.then(resolve, (error: unknown) => {
+          const result = reject?.(error)
+          queueMicrotask(() => { next = b.modules.entries.retry(); cancelled.resolve() })
+          return result as never
+        })
+      },
+    }
+    return late as Promise<boolean>
+  }
+  const obsolete = b.modules.entries.retry()
+  await entered.promise
+  pending.reject(new Error('late obsolete authority failure'))
+  await cancelled.promise
+  await Promise.all([obsolete, next])
+  expect(lifecycle.withdraw).not.toHaveBeenCalled()
+  expect(b.modules.entries.isStopped).toBe(false)
+  expect(b.modules.entries.state.getSnapshot().failures).toEqual([])
+  expect([...b.ctx.loader.entries()]).toHaveLength(1)
 })
 
 it('reports reconciliation before startup and missing service activation without losing later retries', async () => {

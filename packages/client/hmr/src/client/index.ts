@@ -25,7 +25,12 @@ export function apply(ctx: Context): void {
   }
 
   ctx.effect(() => {
+    const document = (globalThis as import('@deepseek-ai/dsh-client-modules/client').DshWindow).__ModuleLoader__?.document
+    if (document?.signal.aborted) return () => {}
     const source = new EventSource(EVENTS_ROUTE)
+    const close = (): void => { source.close() }
+    document?.signal.addEventListener('abort', close, { once: true })
+    if (document?.signal.aborted) close()
     source.addEventListener('message', (event: MessageEvent<string>) => {
       let value: unknown
       try {
@@ -42,6 +47,9 @@ export function apply(ctx: Context): void {
         handle(parsed.frame)
       }
     })
-    return () => { source.close() }
+    return () => {
+      document?.signal.removeEventListener('abort', close)
+      close()
+    }
   }, 'client-hmr: event source')
 }

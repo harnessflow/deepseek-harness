@@ -126,7 +126,7 @@ export class ClientModuleSystem implements ClientModuleLoader {
         this.invalidate(id, rev)
       },
       prune: (roots) => { this.prune(roots) },
-    })
+    }, options.registrationTarget.document)
     this.seed = new Map(Object.entries(options.staticModules))
     this.loadBundle = options.loadBundle ?? defaultLoadBundle
 
@@ -157,6 +157,7 @@ export class ClientModuleSystem implements ClientModuleLoader {
 
   /** Register one bundle factory, rejecting a script that executes twice without invalidation. */
   private register(registration: ClientBundleRegistration): void {
+    if (this.entries.isStopped) return
     const ownerId = stripClientSuffix(registration.id)
     if (registration.chunk !== undefined && !CLIENT_CHUNK.test(registration.chunk)) {
       throw new Error(`client-modules: invalid package-local chunk ${JSON.stringify(registration.chunk)}`)
@@ -200,6 +201,7 @@ export class ClientModuleSystem implements ClientModuleLoader {
    * the rows that were registered.
    */
   private async arrive(row: BootModuleRow): Promise<void> {
+    if (this.entries.isStopped) throw new DOMException('Document withdrawn', 'AbortError')
     const { id } = row
     if (this.loadCache.has(id) || this.factories.has(id)) return
     const reload = this.reloadTargets.get(id)
@@ -207,6 +209,7 @@ export class ClientModuleSystem implements ClientModuleLoader {
     const fallback = reload === undefined && row.url !== preferred ? row.url : undefined
     const failures: string[] = []
     const attempt = async (url: string): Promise<'registered' | 'transport-failed' | 'not-registered'> => {
+      if (this.entries.isStopped) throw new DOMException('Document withdrawn', 'AbortError')
       try {
         await this.loadShared(url)
       } catch (error) {
@@ -214,6 +217,7 @@ export class ClientModuleSystem implements ClientModuleLoader {
         return 'transport-failed'
       }
       if (this.factories.has(id)) return 'registered'
+      if (this.entries.isStopped) throw new DOMException('Document withdrawn', 'AbortError')
       failures.push(`${url}: loaded without registering "${id}" via __ModuleLoader__.load`)
       return 'not-registered'
     }
@@ -291,6 +295,7 @@ export class ClientModuleSystem implements ClientModuleLoader {
 
   /** Materialize a registered factory (synchronous; memoized in loadCache). */
   private materialize(id: string, ownerId = id): ClientModuleRecord {
+    if (this.entries.isStopped) throw new DOMException('Document withdrawn', 'AbortError')
     const existing = this.loadCache.get(id)
     if (existing !== undefined) return existing
     const registered = this.factories.get(id)
@@ -303,6 +308,7 @@ export class ClientModuleSystem implements ClientModuleLoader {
     try {
       const edges = new Set<string>()
       const exports = registered.factory(this.makeRequire(ownerId, edges))
+      if (this.entries.isStopped) throw new DOMException('Document withdrawn', 'AbortError')
       const record: ClientModuleRecord = { id, exports, styles: claimStyles(ownerId), edges }
       this.loadCache.set(id, record)
       return record
