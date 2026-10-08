@@ -20,6 +20,7 @@ import type { RowToast } from '../src/client/contract/slots.ts'
 import { DirectoryBrowseError, UiWorkspaceService } from '../src/client/navigation.ts'
 import { createWorkspaceViewStore, FLAT_SESSION_ORDER_KEY } from '../src/client/stores.ts'
 import { UNGROUPED_KEY } from '../src/client/tree.ts'
+import { Config } from '../src/config.ts'
 
 const sid = (id: string): SessionId => SessionId(id)
 const wid = (id: string): WorkspaceId => id as WorkspaceId
@@ -268,6 +269,7 @@ class FakeDirectoryPicker {
 
 interface BenchOptions {
   readonly initializeDefaultOnEmpty?: boolean
+  readonly requireWorkspaceSelectionOnNewSession?: boolean
   readonly configureWorkspaces?: (workspaces: FakeWorkspaces) => void
   readonly workspaces?: WorkspaceSnapshot
   readonly sessions?: SessionListState
@@ -300,11 +302,74 @@ function bench(options: BenchOptions = {}) {
     view.actions,
     notify,
     options.initializeDefaultOnEmpty,
+    options.requireWorkspaceSelectionOnNewSession,
   )
   return { ctx, directoryPicker, sessions, uiWorkspace, workspaces, layout, selectPanel, view, notify }
 }
 
 describe('UiWorkspaceService', () => {
+  it('keeps the native global-new-session policy by default and accepts an explicit opt-in', () => {
+    expect(Config({}).requireWorkspaceSelectionOnNewSession).toBe(false)
+    expect(Config({ requireWorkspaceSelectionOnNewSession: true }).requireWorkspaceSelectionOnNewSession).toBe(true)
+  })
+  it('requires an explicit workspace after global New Session while preserving histories and local actions', async () => {
+    const saved = persistSelection({ sessionId: sid('history') })
+    const history = summary('history', { cwd: '/w/a' })
+    const b = bench({
+      requireWorkspaceSelectionOnNewSession: true,
+      sessions: sessionState([history]),
+      workspaces: workspaceState([workspace('a', [history.id])]),
+    })
+    await setImmediate()
+    expect(b.sessions.retain).toHaveBeenCalledWith(history.id, { source: 'mainView' })
+    b.sessions.create.mockClear()
+    b.uiWorkspace.startSession()
+    expect(b.sessions.retained[0]!.release).toHaveBeenCalledOnce()
+    expect(JSON.parse(saved.get('dsh.sessions.current')!)).toEqual({})
+    expect(b.sessions.create).not.toHaveBeenCalled()
+    expect(b.sessions.list.getSnapshot().ids).toEqual([history.id])
+    expect(b.workspaces.list.getSnapshot().items[0]!.sessionIds).toEqual([history.id])
+    b.uiWorkspace.startSession(wid('a'))
+    await setImmediate()
+    expect(b.sessions.create).toHaveBeenCalledExactlyOnceWith({ workspaceId: wid('a') })
+    expect(b.sessions.retain).toHaveBeenLastCalledWith(sid('created-a'), { source: 'mainView' })
+    b.uiWorkspace.startSession()
+    await b.uiWorkspace.openWorkspace(wid('a'))
+    expect(b.sessions.retain).toHaveBeenLastCalledWith(sid('created-a'), { source: 'mainView' })
+  })
+
+  it('keeps global New Session unselected when startup catalogs arrive later', async () => {
+    persistSelection({ sessionId: sid('history') })
+    const b = bench({ requireWorkspaceSelectionOnNewSession: true })
+    b.uiWorkspace.startSession()
+    b.sessions.list.set(sessionState([summary('history')]))
+    b.workspaces.list.set(workspaceState([workspace('a', [sid('history')])]))
+    await setImmediate()
+    expect(b.sessions.create).not.toHaveBeenCalled()
+    expect(b.sessions.retain).not.toHaveBeenCalled()
+    expect(b.workspaces.initializeDefault).not.toHaveBeenCalled()
+  })
+
+  it.each(['startup', 'picker'] as const)('cancels pending %s navigation on global New Session', async (source) => {
+    persistSelection({})
+    const pending = Promise.withResolvers<SessionId>()
+    const b = bench({
+      requireWorkspaceSelectionOnNewSession: true,
+      sessions: sessionState([], source === 'startup' ? 'ready' : 'pending'),
+      workspaces: workspaceState([workspace('a')]),
+      configureSessions: sessions => { sessions.create.mockReturnValue(pending.promise) },
+    })
+    const opening = source === 'picker' ? b.uiWorkspace.openWorkspace(wid('a')) : undefined
+    b.uiWorkspace.startSession()
+    pending.resolve(sid('late'))
+    await opening
+    await setImmediate()
+    expect(b.sessions.retain).not.toHaveBeenCalled()
+    b.sessions.list.set(sessionState([summary('late')]))
+    await setImmediate()
+    expect(b.sessions.retain).not.toHaveBeenCalled()
+  })
+
   it('leaves cold empty startup untouched when default initialization is disabled', async () => {
     const b = bench({ initializeDefaultOnEmpty: false })
     b.sessions.list.set(sessionState())

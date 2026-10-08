@@ -119,6 +119,7 @@ export function apply(ctx: Context): void {
   const uiWorkspace = new UiWorkspaceService(
     ctx, ctx.remote.directoryPicker, workspaces, sessions, viewInstance.actions, notify,
     configured.initializeDefaultOnEmpty,
+    configured.requireWorkspaceSelectionOnNewSession,
   )
   ctx.slots.provideRoot({ hooks: { workspaces: workspaces.list } })
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'ui-workspace: dictionaries')

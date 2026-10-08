@@ -25,6 +25,8 @@ kind: "package-reference"
 <a id="use-this-package"></a>
 ## 使用本包
 
+Host 配置 `requireWorkspaceSelectionOnNewSession` 默认为 `false`。设为 `true` 后，全局新会话入口清空当前选择，呈现原生工作区选择态；取消尚未完成的导航，并在当前 Client 生命周期内停止初始恢复。明确传入工作区的新建操作和后续选择保留原行为，已有工作区和会话历史保留。用户执行全局新会话之前，冷启动恢复不变。
+
 Host 配置 `initializeDefaultOnEmpty` 默认为 `true`。设为 `false` 时，冷启动且 Workspace 和 Session 列表均为空，会保持未选择状态，直到用户选择目录。既有 Workspace、导航恢复、主动创建及选择取消保留原生行为。该启动偏好不新增持久状态。
 
 用侧边栏浏览 Workspace 及其 Session、重排它们并新建会话；在 Session Intent 主视觉区用选择器为新会话选择 Workspace。打开的 Workspace 默认显示五条空闲的非空白 Session。正在运行的 Session（包括有子会话正在运行的父会话）始终按原顺序显示，不占用这五条配额；当前选中的空白**新会话**在首条提示词落地前也作为额外行。每次点击**展开其余**最多再显示五条空闲 Session；全部显示后，**收起**恢复初始行数，但仍显示正在运行的 Session。关闭再打开 Workspace 也会恢复该折叠投影。

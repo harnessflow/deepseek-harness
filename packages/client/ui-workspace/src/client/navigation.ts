@@ -57,7 +57,8 @@ export interface UiWorkspace {
   /**
    * Start a New Session flow and navigate to its Session; a creation the Host
    * refuses is shown through the Workspace notice and leaves the selection as it was.
-   * @param workspaceId - explicit target; absent inherits the current or most recent Workspace.
+   * @param workspaceId - explicit target; absent inherits the current or most recent Workspace
+   * unless requireWorkspaceSelectionOnNewSession asks the user to choose one first.
    */
   startSession(workspaceId?: WorkspaceId): void
   /**
@@ -130,6 +131,7 @@ class UiWorkspaceService extends Service implements UiWorkspace {
     {}, { persist: { name: 'dsh.sessions.current' } },
   )
   private mainReference: SessionReference | undefined
+  private skipInitialRestoration = false
 
   /**
    * @param ctx - Client root Context.
@@ -139,6 +141,7 @@ class UiWorkspaceService extends Service implements UiWorkspace {
    * @param view - the browser's viewing-store write set (one instance shared with its registration).
    * @param notify - show one notice through the Workspace notice channel.
    * @param initializeDefaultOnEmpty - whether cold empty startup prepares the native default workspace.
+   * @param requireWorkspaceSelectionOnNewSession - whether global New Session clears selection.
    */
   constructor(
     ctx: Context,
@@ -148,6 +151,7 @@ class UiWorkspaceService extends Service implements UiWorkspace {
     private readonly view: Pick<WorkspaceViewStoreActions, 'pinSessionOrder'>,
     private readonly notify: (toast: RowToast) => void,
     private readonly initializeDefaultOnEmpty = true,
+    private readonly requireWorkspaceSelectionOnNewSession = false,
   ) {
     super(ctx, 'uiWorkspace')
     ctx.effect(() => {
@@ -222,6 +226,11 @@ class UiWorkspaceService extends Service implements UiWorkspace {
   }
 
   startSession(workspaceId?: WorkspaceId): void {
+    if (workspaceId === undefined && this.requireWorkspaceSelectionOnNewSession) {
+      this.skipInitialRestoration = true
+      this.clearMain()
+      return
+    }
     const workspace = this.workspaces.list.getSnapshot()
     const sessions = this.sessions.list.getSnapshot()
     const current = this.mainReference?.sessionId
@@ -286,6 +295,7 @@ class UiWorkspaceService extends Service implements UiWorkspace {
     let initial: 'waiting' | 'connecting' | 'done' = 'waiting'
     const reconcile = (): void => {
       if (this.lifetime.signal.aborted) return
+      if (this.skipInitialRestoration) initial = 'done'
       if (this.clearArchivedCurrent()) return
       if (initial !== 'waiting') return
       const workspace = this.workspaces.list.getSnapshot()

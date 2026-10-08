@@ -5,11 +5,14 @@ import z from '@deepseek-ai/schemastery'
 export interface Config {
   /** Create the native default workspace only when both workspaces and sessions are empty. */
   initializeDefaultOnEmpty: boolean
+  /** Global New Session clears selection until the user chooses a Workspace. */
+  requireWorkspaceSelectionOnNewSession: boolean
 }
 
 /** Validate the optional startup preference. */
 export const Config: z<Partial<Config>, Config> = z.object({
   initializeDefaultOnEmpty: z.boolean().default(true),
+  requireWorkspaceSelectionOnNewSession: z.boolean().default(false),
 })
 
 /** Public bootstrap key; contains no workspace or session data. */
